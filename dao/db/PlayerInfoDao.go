@@ -1,7 +1,6 @@
 package db
 
 import (
-	"fmt"
 	"gamego/dao/entity"
 )
 
@@ -25,7 +24,7 @@ func (this *PlayerInfoDao) Update(playerinfo *entity.PlayerInfo) (err error) {
 		return
 	}
 
-	err := Dao.db.Model(entity.PlayerInfo{}).Where("UserId = ?", playerinfo.GetUserID()).Update(playerinfo).Error
+	err = Dao.db.Model(entity.PlayerInfo{}).Where("UserId = ?", playerinfo.GetUserID()).Update(playerinfo).Error
 	if err == nil {
 		playerinfo.SetNone()
 	}

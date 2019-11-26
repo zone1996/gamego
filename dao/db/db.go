@@ -27,7 +27,7 @@ type daoUtil struct {
 
 var Dao *daoUtil
 
-func Init(dbconfig *DbConfig) (result bool, err error) {
+func Init(dbconfig *DbConfig) (result bool) {
 	result = false
 	db, err := gorm.Open("mysql", dbconfig.Url)
 	if err == nil {
@@ -35,6 +35,8 @@ func Init(dbconfig *DbConfig) (result bool, err error) {
 		Dao = &daoUtil{db: db}
 		Dao.register()
 		result = true
+	} else {
+		log.Error("Error:?", err)
 	}
 	return
 }

@@ -17,7 +17,7 @@ func TestDb(t *testing.T) {
 	dbconfig := &DbConfig{
 		Url: conf.GetConfig().DbConfig["url"].(string),
 	}
-	result, err := Init(dbconfig)
+	result := Init(dbconfig)
 
 	if result {
 
@@ -55,8 +55,5 @@ func TestDb(t *testing.T) {
 		fmt.Println("info3: ", info3)
 
 		// Dao.Playerinfodao.ExecNoneQuery("delete from player_info where userId=?", 2) // 删除一条数据
-	} else {
-		t.Errorf("数据库初始化失败:%v", err)
 	}
-
 }
