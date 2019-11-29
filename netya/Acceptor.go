@@ -14,17 +14,18 @@ type Acceptor struct {
 	config   *AcceptorConfig
 	listener net.Listener
 	handler  Handler
-	// 编解码器
+	codec    Codec
 
 	sleepDuration      time.Duration
 	sessionIdGenerator int32
 	conns              map[int32]*IoSession
 }
 
-func (Acceptor) NewAcceptor(config *AcceptorConfig, h Handler) *Acceptor {
+func (Acceptor) NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
 	ac := &Acceptor{
 		config:  config,
 		handler: h,
+		codec:   codec,
 		conns:   make(map[int32]*IoSession),
 	}
 	return ac
@@ -47,28 +48,32 @@ func (ac *Acceptor) Accept() {
 		}
 		session := IoSession.NewIoSession(conn)
 		session.SetId(ac.sessionIdGenerator)
-		go runSession(session, ac.handler)
+		go runSession(session, ac)
 
 		ac.sessionIdGenerator += 1
 		ac.conns[session.Id] = session
 	}
 }
 
-func runSession(s *IoSession, h Handler) {
+func runSession(s *IoSession, ac *Acceptor) {
+	codec := ac.codec
+	h := ac.handler
 	h.OnConnected(s)
 	defer h.OnDisconnected(s)
 
 	for {
-		header := make([]byte, HEADER_SIZE)
-		_, err := io.ReadFull(s.conn, header)
-		if err != nil {
-			s.Close()
+		data := make([]byte, 1024)
+		_, err := s.conn.Read(data)
+		if err != nil && err == io.EOF {
 			return
 		}
-		// TODO 解码
-		var code int16 = 1
-		pbmsg := PbMsg.NewPbMsg(code)
-		h.OnMessage(s, pbmsg)
+		s.InBoundBuffer.Write(data)
+		if pbmsg, ok := codec.Decode(s.InBoundBuffer.Bytes()); ok {
+			s.InBoundBuffer.Truncate(0)
+			for msg := range pbmsg {
+				h.OnMessage(s, msg)
+			}
+		}
 	}
 }
 

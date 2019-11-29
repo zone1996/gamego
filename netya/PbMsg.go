@@ -82,7 +82,8 @@ func (this *PbMsg) GetPayload() []byte {
 }
 
 func (this *PbMsg) SetPayload(payload []byte) {
-	this.payload = payload
+	this.payload = make([]byte, len(payload))
+	copy(this.payload, payload)
 }
 
 func (this *PbMsg) GetPB() interface{} {
