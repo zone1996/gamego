@@ -4,6 +4,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	log "github.com/zone1996/logo"
 )
 
 type AcceptorConfig struct {
@@ -21,18 +23,36 @@ type Acceptor struct {
 	conns              map[int32]*IoSession
 }
 
-func (Acceptor) NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
+func NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
 	ac := &Acceptor{
-		config:  config,
-		handler: h,
-		codec:   codec,
-		conns:   make(map[int32]*IoSession),
+		config:             config,
+		handler:            h,
+		codec:              codec,
+		conns:              make(map[int32]*IoSession),
+		sleepDuration:      time.Second,
+		sessionIdGenerator: 0,
 	}
 	return ac
 }
 
 func (ac *Acceptor) init() {
+	listener, err := net.Listen("tcp", ac.config.Port)
+	if err != nil {
+		log.Fatal("?", err)
+	}
+	ac.listener = listener
+}
 
+func (ac *Acceptor) temporarySleep() {
+	if ac.sleepDuration == 0 {
+		ac.sleepDuration = 5 * time.Millisecond
+	} else {
+		ac.sleepDuration *= 2
+	}
+	if ac.sleepDuration >= time.Second {
+		ac.sleepDuration = time.Second
+	}
+	time.Sleep(ac.sleepDuration)
 }
 
 func (ac *Acceptor) Accept() {
@@ -46,7 +66,8 @@ func (ac *Acceptor) Accept() {
 			}
 			return
 		}
-		session := IoSession.NewIoSession(conn)
+		ac.sleepDuration = 0
+		session := NewIoSession(conn)
 		session.SetId(ac.sessionIdGenerator)
 		go runSession(session, ac)
 
@@ -59,24 +80,43 @@ func runSession(s *IoSession, ac *Acceptor) {
 	codec := ac.codec
 	h := ac.handler
 	h.OnConnected(s)
-	defer h.OnDisconnected(s)
+	defer func() {
+		h.OnDisconnected(s)
+		delete(ac.conns, s.Id) // maybe concurrenttly mod conns
+	}()
+	go func() {
+		for {
+			if s.OutBoundBuffer.Len() > 0 {
+				if s.IsAlive() {
+					s.mu.Lock()
+					s.conn.Write(s.OutBoundBuffer.Bytes())
+					s.OutBoundBuffer.Reset()
+					s.mu.Unlock()
+				} else {
+					return
+				}
+			}
+		}
+	}()
 
 	for {
-		data := make([]byte, 1024)
+		data := make([]byte, 2048)
 		_, err := s.conn.Read(data)
 		if err != nil && err == io.EOF {
 			return
 		}
 		s.InBoundBuffer.Write(data)
-		if pbmsg, ok := codec.Decode(s.InBoundBuffer.Bytes()); ok {
-			s.InBoundBuffer.Truncate(0)
-			for msg := range pbmsg {
-				h.OnMessage(s, msg)
+		if pbmsg, ok := codec.Decode(s.InBoundBuffer); ok {
+			for _, msg := range pbmsg {
+				h.OnMessage(s, msg) // do not block here
 			}
 		}
 	}
 }
 
 func (ac *Acceptor) Shutdown() {
-
+	ac.listener.Close()
+	for _, s := range ac.conns {
+		s.Close()
+	}
 }

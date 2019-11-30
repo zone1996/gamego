@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package netya;
+
+message PbMsg{
+	int32 code   = 1; // 协议号
+	int32 userId = 2; // 用户ID
+	int32 Value0 = 3; // 可选值
+	int32 Value1  = 4; // 可选值
+	int32 Value2  = 5; // 可选值
+	bytes payload = 6; // 消息体
+}

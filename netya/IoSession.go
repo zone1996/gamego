@@ -11,20 +11,20 @@ import (
 
 type IoSession struct {
 	Id             int32
-	conn           *net.Conn
-	InBoundBuffer  *bytes.Buffer // not used
+	conn           net.Conn
+	InBoundBuffer  *bytes.Buffer // using for cumulative bytes
 	OutBoundBuffer *bytes.Buffer // using for async write
-	Attribute      map[string]string
+	Attribute      map[string]interface{}
 	AliveState     int32 // 1:存活
 	mu             sync.RWMutex
 }
 
-func (IoSession) NewIoSession(conn *net.Conn) *IoSession {
+func NewIoSession(conn net.Conn) *IoSession {
 	session := &IoSession{
 		conn:           conn,
 		InBoundBuffer:  new(bytes.Buffer),
 		OutBoundBuffer: new(bytes.Buffer),
-		Attribute:      make(map[string]string),
+		Attribute:      make(map[string]interface{}),
 		AliveState:     1,
 	}
 	return session
@@ -68,17 +68,17 @@ func (this *IoSession) AsyncWrite(b []byte) {
 	}
 }
 
-func (this *IoSession) SetAttribute(k, v string) {
+func (this *IoSession) SetAttribute(k string, v interface{}) {
 	this.Attribute[k] = v
 }
 
-func (this *IoSession) GetAttribute(k string) string {
+func (this *IoSession) GetAttribute(k string) interface{} {
 	return this.Attribute[k]
 }
 
 func (this *IoSession) Close() {
 	if this.IsAlive() {
-		this.conn.Close()
 		this.SetAlive(false)
+		this.conn.Close()
 	}
 }
