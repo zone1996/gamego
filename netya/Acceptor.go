@@ -1,7 +1,6 @@
 package netya
 
 import (
-	"io"
 	"net"
 	"time"
 
@@ -9,7 +8,7 @@ import (
 )
 
 type AcceptorConfig struct {
-	Port string
+	Port string // ":6666"
 }
 
 type Acceptor struct {
@@ -84,28 +83,18 @@ func runSession(s *IoSession, ac *Acceptor) {
 		h.OnDisconnected(s)
 		delete(ac.conns, s.Id) // maybe concurrenttly mod conns
 	}()
-	go func() {
-		for {
-			if s.OutBoundBuffer.Len() > 0 {
-				if s.IsAlive() {
-					s.mu.Lock()
-					s.conn.Write(s.OutBoundBuffer.Bytes())
-					s.OutBoundBuffer.Reset()
-					s.mu.Unlock()
-				} else {
-					return
-				}
-			}
-		}
-	}()
 
+	go s.doAsyncWrite()
+	go s.doAsyncTask()
+
+	data := make([]byte, 1024)
 	for {
-		data := make([]byte, 2048)
-		_, err := s.conn.Read(data)
-		if err != nil && err == io.EOF {
+		n, err := s.conn.Read(data)
+		log.Info("Read n=?, err=?", n, err)
+		if err != nil {
 			return
 		}
-		s.InBoundBuffer.Write(data)
+		s.InBoundBuffer.Write(data[:n])
 		if pbmsg, ok := codec.Decode(s.InBoundBuffer); ok {
 			for _, msg := range pbmsg {
 				h.OnMessage(s, msg) // do not block here

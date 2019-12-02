@@ -6,9 +6,9 @@ import (
 	"gamego/conf"
 	"gamego/dao/db"
 	"gamego/netya"
-	"os/signal"
 
 	"os"
+	"os/signal"
 
 	log "github.com/zone1996/logo"
 )
@@ -30,8 +30,9 @@ func initComponent(ok bool, compName string) {
 
 func initLog() {
 	logconfig := &log.LogConfig{
-		Level:        log.LEVEL_INFO,
+		Level:        log.LEVEL_DEBUG,
 		SkipFileName: true,
+		IsConsole:    true,
 	}
 	log.Init(logconfig)
 }

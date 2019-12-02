@@ -33,5 +33,6 @@ func GetCmd(code int32) (cmd Cmd, ok bool) {
 type PlayerLoginCmd struct{}
 
 func (this *PlayerLoginCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
-	log.Info("Receive code ? from Session:?", msg.Code, session.Id)
+	userId := msg.UserId
+	log.Info("Receive code=? from SessionId=?, UserId=?", msg.Code, session.Id, userId)
 }
