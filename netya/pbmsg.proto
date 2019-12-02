@@ -3,10 +3,11 @@ syntax = "proto3";
 package netya;
 
 message PbMsg{
-	int32 code   = 1; // 协议号
-	int32 userId = 2; // 用户ID
-	int32 Value0 = 3; // 可选值
-	int32 Value1  = 4; // 可选值
-	int32 Value2  = 5; // 可选值
-	bytes payload = 6; // 消息体
+	int32 length = 1; // 消息长度
+	int32 code   = 2; // 协议号
+	int32 userId = 3; // 用户ID
+	int32 Value0 = 4; // 可选值
+	int32 Value1 = 5; // 可选值
+	int32 Value2 = 6; // 可选值
+	bytes payload = 7; // 消息体
 }

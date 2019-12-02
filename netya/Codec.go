@@ -50,7 +50,7 @@ func doDecode(in *bytes.Buffer) *PbMsg {
 	log.Info("length=?", length)
 	afterLen := in.Len()
 	if afterLen < length { // not enough data for a full PbMsg
-		for i := 0; i <= prelen-afterLen; i++ {
+		for i := 1; i <= prelen-afterLen; i++ {
 			in.UnreadByte()
 		}
 		return nil
@@ -58,12 +58,15 @@ func doDecode(in *bytes.Buffer) *PbMsg {
 	pbMsgHeadLen := prelen - afterLen
 	log.Info("headLen=?", pbMsgHeadLen)
 	for i := 1; i <= pbMsgHeadLen; i++ {
-		in.UnreadByte()
+		e := in.UnreadByte() // TODO bytes.Buffer support unread only 1 bit, need to fix this
+		if e != nil {
+			log.Info("unread err:?", e)
+		}
 	}
 
 	data := make([]byte, pbMsgHeadLen+length)
 	in.Read(data)
-
+	fmt.Println("data bytes=", data)
 	msg := &PbMsg{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		log.Error("PbMsg decode error:?", err.Error())
@@ -80,11 +83,12 @@ func readRawVarint32(in *bytes.Buffer) int {
 	if in.Len() < 1 {
 		return 0
 	}
-	unreadNum := 0
+	_, _ = in.ReadByte()
+	unreadNum := 1
 	var result int = 0
 	defer func() {
 		if unreadNum > 0 {
-			for unreadNum != 0 {
+			for unreadNum != 1 {
 				in.UnreadByte()
 				unreadNum--
 			}
