@@ -14,12 +14,8 @@ import (
 )
 
 func main() {
-	conf.Init("./conf/config.conf")
-	initLog()
-	cmd.InitCmd()
-	ac := initNet()
-	initDB()
-	log.Info("Server started.")
+	// TODO 从命令行解析配置文件路径
+	start()
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	<-c
@@ -54,6 +50,15 @@ func initDB() {
 		Url: conf.GetConfig().DbConfig["url"].(string),
 	}
 	initComponent(db.Init(dbconfig), "数据库")
+}
+
+func start() {
+	conf.Init("./conf/config.conf")
+	initLog()
+	cmd.InitCmd()
+	ac := initNet()
+	initDB()
+	log.Info("Server started.")
 }
 
 func onStop(ac *netya.Acceptor) {
