@@ -90,15 +90,20 @@ func runSession(s *IoSession, ac *Acceptor) {
 	data := make([]byte, 1024)
 	for {
 		n, err := s.conn.Read(data)
-		log.Info("Read n=?, err=?", n, err)
 		if err != nil {
+			log.Error("?", err)
 			return
 		}
 		s.InBoundBuffer.Write(data[:n])
-		if pbmsg, ok := codec.Decode(s.InBoundBuffer); ok {
+		if pbmsg, err := codec.Decode(s.InBoundBuffer); err == nil {
 			for _, msg := range pbmsg {
-				h.OnMessage(s, msg) // do not block here
+				if msg != nil {
+					h.OnMessage(s, msg) // do not block here
+				}
 			}
+		} else if err == ErrTooLargeMsg {
+			log.Error("?", err)
+			return
 		}
 	}
 }

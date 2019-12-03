@@ -1,35 +1,40 @@
 package netya
 
 import (
-	"bytes"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gogo/protobuf/proto"
 
 	log "github.com/zone1996/logo"
 )
 
 type IoSession struct {
-	Id             int32
-	conn           net.Conn
-	InBoundBuffer  *bytes.Buffer // using for cumulate bytes
-	OutBoundBuffer *bytes.Buffer // using for async write
-	AsyncWriteChan chan struct{}
-	AsyncTaskChan  chan func()
-	Attribute      map[string]interface{}
-	AliveState     int32 // 1:alive
-	mu             sync.RWMutex
+	Id                  int32
+	conn                net.Conn
+	InBoundBuffer       *ByteBuf // using for cumulate bytes
+	OutBoundBuffer      *ByteBuf // using for async write
+	AsyncWriteChan      chan struct{}
+	AsyncTaskChan       chan func()
+	closeAsyncTaskChan  chan struct{}
+	closeAsyncWriteChan chan struct{}
+	Attribute           map[string]interface{}
+	AliveState          int32 // 1:alive
+	mu                  sync.RWMutex
 }
 
 func NewIoSession(conn net.Conn) *IoSession {
 	session := &IoSession{
-		conn:           conn,
-		InBoundBuffer:  new(bytes.Buffer),
-		OutBoundBuffer: new(bytes.Buffer),
-		Attribute:      make(map[string]interface{}),
-		AsyncWriteChan: make(chan struct{}),
-		AsyncTaskChan:  make(chan func(), 64),
-		AliveState:     1,
+		conn:                conn,
+		InBoundBuffer:       NewByteBuf(1024, 2*MAX_PACKET_SIZE),
+		OutBoundBuffer:      NewByteBuf(1024, 2*MAX_PACKET_SIZE),
+		Attribute:           make(map[string]interface{}),
+		AsyncWriteChan:      make(chan struct{}),
+		AsyncTaskChan:       make(chan func(), 64),
+		closeAsyncTaskChan:  make(chan struct{}),
+		closeAsyncWriteChan: make(chan struct{}),
+		AliveState:          1,
 	}
 	return session
 }
@@ -61,6 +66,16 @@ func (this *IoSession) Write(b []byte) (n int, err error) {
 	return 0, nil
 }
 
+func (this *IoSession) AsyncSend(msg *PbMsg) {
+	msg.Length = int32(msg.XXX_Size())
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		log.Info("proto marshal err:?", err)
+		return
+	}
+	this.AsyncWrite(data)
+}
+
 func (this *IoSession) AsyncWrite(b []byte) {
 	if this.IsAlive() {
 		this.mu.Lock()
@@ -76,22 +91,30 @@ func (this *IoSession) AsyncWrite(b []byte) {
 }
 
 func (this *IoSession) doAsyncWrite() {
-	for _ = range this.AsyncWriteChan {
-		if this.IsAlive() {
-			this.mu.Lock()
-			this.conn.Write(this.OutBoundBuffer.Bytes())
-			this.OutBoundBuffer.Reset()
-			this.mu.Unlock()
-		} else {
-			return
+	for {
+		select {
+		case <-this.AsyncWriteChan:
+			if this.IsAlive() {
+				this.mu.Lock()
+				this.conn.Write(this.OutBoundBuffer.Bytes())
+				this.OutBoundBuffer.Reset()
+				this.mu.Unlock()
+			}
+		case <-this.closeAsyncWriteChan:
+			break
 		}
 	}
 }
 
 func (this *IoSession) doAsyncTask() {
-	for f := range this.AsyncTaskChan {
-		if this.IsAlive() {
-			f()
+	for {
+		select {
+		case f := <-this.AsyncTaskChan:
+			if this.IsAlive() {
+				f()
+			}
+		case <-this.closeAsyncTaskChan:
+			break
 		}
 	}
 }
@@ -100,7 +123,6 @@ func (this *IoSession) SetAttribute(k string, v interface{}) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.Attribute[k] = v
-
 }
 
 func (this *IoSession) GetAttribute(k string) interface{} {
@@ -111,6 +133,8 @@ func (this *IoSession) GetAttribute(k string) interface{} {
 
 func (this *IoSession) Close() {
 	if this.IsAlive() {
+		this.closeAsyncTaskChan <- struct{}{}
+		this.closeAsyncWriteChan <- struct{}{}
 		this.SetAlive(false)
 		this.conn.Close()
 	}

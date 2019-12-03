@@ -1,85 +1,63 @@
 package netya
 
 import (
-	"bytes"
-	"fmt"
+	"errors"
 
 	proto "github.com/golang/protobuf/proto"
 	log "github.com/zone1996/logo"
 )
 
 const MAX_PACKET_SIZE int = 1024 * 4 // PbMsg最大长度
+var ErrTooLargeMsg = errors.New("Too Large PbMsg")
 
 type Codec interface {
 	Encode(*PbMsg) ([]byte, bool)
-	Decode(*bytes.Buffer) ([]*PbMsg, bool)
+	Decode(*ByteBuf) ([]*PbMsg, error)
 }
 
 type DefaultCodec struct{}
 
-func (c *DefaultCodec) Decode(in *bytes.Buffer) ([]*PbMsg, bool) {
-	prelen := in.Len()
-	var msgs []*PbMsg = nil
+func (c *DefaultCodec) Decode(in *ByteBuf) (msgs []*PbMsg, err error) {
 	for {
-		if msg := doDecode(in); msg != nil {
-			if msgs == nil {
-				msgs = make([]*PbMsg, 1)
-			}
+		if msg, e := doDecode(in); msg != nil {
 			msgs = append(msgs, msg)
 		} else {
+			err = e
 			break
 		}
 	}
-	afterLen := in.Len()
-	if prelen != afterLen {
-		temp := in.Bytes()
-		in.Reset()
-		in.Write(temp)
-	}
-	return msgs, msgs == nil
+	return
 }
 
-func doDecode(in *bytes.Buffer) *PbMsg {
-	fmt.Println("All bytes=", in.Bytes())
+func doDecode(in *ByteBuf) (*PbMsg, error) {
 	prelen := in.Len()
-	log.Info("PreLen=?", prelen)
 	length := readRawVarint32(in)
 	if length <= 0 {
-		return nil
+		return nil, nil
 	}
-	log.Info("length=?", length)
 	afterLen := in.Len()
 	if afterLen < length { // not enough data for a full PbMsg
-		for i := 1; i <= prelen-afterLen; i++ {
-			in.UnreadByte()
-		}
-		return nil
+		in.UnreadBytes(prelen - afterLen)
+		return nil, nil
 	}
 	pbMsgHeadLen := prelen - afterLen
-	log.Info("headLen=?", pbMsgHeadLen)
-	for i := 1; i <= pbMsgHeadLen; i++ {
-		e := in.UnreadByte() // TODO bytes.Buffer support unread only 1 bit, need to fix this
-		if e != nil {
-			log.Info("unread err:?", e)
-		}
-	}
-
-	data := make([]byte, pbMsgHeadLen+length)
-	in.Read(data)
-	fmt.Println("data bytes=", data)
+	in.UnreadBytes(pbMsgHeadLen)
+	data := in.ReadSilceN(pbMsgHeadLen + length)
 	msg := &PbMsg{}
 	if err := proto.Unmarshal(data, msg); err != nil {
-		log.Error("PbMsg decode error:?", err.Error())
-		return nil
+		return nil, err
 	}
 	if length > MAX_PACKET_SIZE {
 		log.Info("PbMsg is too big, code=?, userId=?", msg.Code, msg.UserId)
+		if length > MAX_PACKET_SIZE*2 {
+			return nil, ErrTooLargeMsg
+		}
 	}
-	return msg
+	return msg, nil
 }
 
 // see https://github.com/netty/netty/blob/master/codec/src/main/java/io/netty/handler/codec/protobuf/ProtobufVarint32FrameDecoder.java
-func readRawVarint32(in *bytes.Buffer) int {
+func readRawVarint32(in *ByteBuf) int {
 	if in.Len() < 1 {
 		return 0
 	}
@@ -87,11 +65,8 @@ func readRawVarint32(in *bytes.Buffer) int {
 	unreadNum := 1
 	var result int = 0
 	defer func() {
-		if unreadNum > 0 {
-			for unreadNum != 1 {
-				in.UnreadByte()
-				unreadNum--
-			}
+		if unreadNum > 1 {
+			in.UnreadBytes(unreadNum)
 		}
 	}()
 
