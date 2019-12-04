@@ -34,8 +34,9 @@ func (c *Connector) Connect() bool {
 }
 
 func (c *Connector) run() {
-	data := make([]byte, 1024)
 	s := c.session
+	data := make([]byte, 1024)
+	defer s.Close()
 	for {
 		n, err := s.conn.Read(data)
 		if err != nil {

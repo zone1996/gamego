@@ -22,7 +22,7 @@ type PbMsg struct {
 	pb      interface{} // 消息体反序列化得到，程序内使用，不参与数据传输
 }
 
-func (PbMsg) NewPbMsg(code int16) (pbmsg *PbMsg) {
+func NewPbMsg(code int16) (pbmsg *PbMsg) {
 	pbmsg = &PbMsg{
 		magicNum: MAGIC_NUM,
 		code:     code,

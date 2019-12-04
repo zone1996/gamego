@@ -40,6 +40,7 @@ func (bb *ByteBuf) Empty() bool {
 	return bb.r == bb.w
 }
 
+// not safe read
 func (bb *ByteBuf) ReadSilceN(n int) []byte {
 	if n <= 0 || bb.Len() < n {
 		if bb.Empty() {
@@ -89,6 +90,13 @@ func (bb *ByteBuf) UnreadBytes(n int) error {
 
 func (bb *ByteBuf) Bytes() []byte {
 	return bb.buf[bb.r:bb.w]
+}
+
+func (bb *ByteBuf) BytesN(n int) []byte {
+	if n <= 0 || bb.Len() < n {
+		return nil
+	}
+	return bb.buf[bb.r : bb.r+n]
 }
 
 func (bb *ByteBuf) Reset() {
