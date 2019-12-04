@@ -5,8 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gogo/protobuf/proto"
-
 	log "github.com/zone1996/logo"
 )
 
@@ -27,8 +25,8 @@ type IoSession struct {
 func NewIoSession(conn net.Conn) *IoSession {
 	session := &IoSession{
 		conn:                conn,
-		InBoundBuffer:       NewByteBuf(1024, 2*MAX_PACKET_SIZE),
-		OutBoundBuffer:      NewByteBuf(1024, 2*MAX_PACKET_SIZE),
+		InBoundBuffer:       NewByteBuf(1024, 2*int(MAX_PACKET_SIZE)),
+		OutBoundBuffer:      NewByteBuf(1024, 2*int(MAX_PACKET_SIZE)),
 		Attribute:           make(map[string]interface{}),
 		AsyncWriteChan:      make(chan struct{}),
 		AsyncTaskChan:       make(chan func(), 64),
@@ -60,24 +58,18 @@ func (this *IoSession) SetAlive(alive bool) {
 }
 
 func (this *IoSession) Write(b []byte) (n int, err error) {
-	if this.IsAlive() {
+	if this.IsAlive() && b != nil {
 		return this.conn.Write(b)
 	}
 	return 0, nil
 }
 
 func (this *IoSession) AsyncSend(msg *PbMsg) {
-	msg.Length = int32(msg.XXX_Size())
-	data, err := proto.Marshal(msg)
-	if err != nil {
-		log.Info("proto marshal err:?", err)
-		return
-	}
-	this.AsyncWrite(data)
+	this.AsyncWrite(msg.Bytes())
 }
 
 func (this *IoSession) AsyncWrite(b []byte) {
-	if this.IsAlive() {
+	if this.IsAlive() && b != nil {
 		this.mu.Lock()
 		defer this.mu.Unlock()
 		n, err := this.OutBoundBuffer.Write(b)

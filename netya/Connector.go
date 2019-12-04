@@ -50,9 +50,11 @@ func (c *Connector) run() {
 					c.h.OnMessage(s, msg) // do not block here
 				}
 			}
-		} else if err == ErrTooLargeMsg {
-			log.Error("?", err)
+		} else if err == ErrTooLargeMsg || err == ErrMagicNotRight {
+			log.Error("err:?", err)
 			return
+		} else {
+			log.Error("err:?", err)
 		}
 	}
 }

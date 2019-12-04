@@ -16,7 +16,7 @@ func (h *DefaultHandler) OnConnected(session *netya.IoSession) {
 }
 
 func (h *DefaultHandler) OnMessage(session *netya.IoSession, msg *netya.PbMsg) {
-	code := msg.Code
+	code := msg.GetCode()
 
 	if c, ok := cmds.GetCmd(code); ok {
 		session.AddTask(wrapTask(c, session, msg))

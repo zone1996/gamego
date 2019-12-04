@@ -101,9 +101,11 @@ func runSession(s *IoSession, ac *Acceptor) {
 					h.OnMessage(s, msg) // do not block here
 				}
 			}
-		} else if err == ErrTooLargeMsg {
-			log.Error("?", err)
+		} else if err == ErrTooLargeMsg || err == ErrMagicNotRight {
+			log.Error("Err:?", err)
 			return
+		} else {
+			log.Info("Err:?", err)
 		}
 	}
 }

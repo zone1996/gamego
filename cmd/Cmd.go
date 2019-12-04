@@ -3,7 +3,6 @@ package cmd
 import (
 	"gamego/netya"
 
-	proto "github.com/golang/protobuf/proto"
 	log "github.com/zone1996/logo"
 )
 
@@ -35,22 +34,21 @@ func GetCmd(code int32) (cmd Cmd, ok bool) {
 type PlayerLoginCmd struct{}
 
 func (this *PlayerLoginCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
-	userId := msg.UserId
-	log.Info("Receive code=? from SessionId=?, UserId=?", msg.Code, session.Id, userId)
+	userId := msg.GetUserId()
+	log.Info("Receive code=? from SessionId=?, UserId=?", msg.GetCode(), session.Id, userId)
 
-	msg1 := &netya.PbMsg{}
-	msg1.Code = 1
-	msg1.UserId = 999
-	msg1.Payload = []byte("send back payload data")
-	msg1.Length = int32(msg.XXX_Size())
-	mdata, err := proto.Marshal(msg1)
+	msg1 := netya.NewPbMsg(msg.GetCode())
+	msg1.SetUserId(userId)
+	msg1.SetPayload([]byte("send back payload data"))
 
-	if err == nil {
-		_, err = session.Write(mdata)
-		if err != nil {
-			log.Info("SendBack err:?", err)
-		}
-	} else {
-		log.Info("Marshal Err:?", err.Error())
+	mdata := msg1.Bytes()
+	if mdata == nil {
+		log.Info("mdata is nil")
 	}
+
+	_, err := session.Write(mdata)
+	if err != nil {
+		log.Info("WriteBack err:?", err)
+	}
+	log.Info("===========Write Back=======?", session.Id)
 }

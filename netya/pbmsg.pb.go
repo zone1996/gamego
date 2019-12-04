@@ -20,87 +20,79 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type PbMsg struct {
-	Length               int32    `protobuf:"varint,1,opt,name=length,proto3" json:"length,omitempty"`
-	Code                 int32    `protobuf:"varint,2,opt,name=code,proto3" json:"code,omitempty"`
-	UserId               int32    `protobuf:"varint,3,opt,name=userId,proto3" json:"userId,omitempty"`
-	Value0               int32    `protobuf:"varint,4,opt,name=Value0,proto3" json:"Value0,omitempty"`
-	Value1               int32    `protobuf:"varint,5,opt,name=Value1,proto3" json:"Value1,omitempty"`
-	Value2               int32    `protobuf:"varint,6,opt,name=Value2,proto3" json:"Value2,omitempty"`
-	Payload              []byte   `protobuf:"bytes,7,opt,name=payload,proto3" json:"payload,omitempty"`
+type Msg struct {
+	Code                 int32    `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	UserId               int32    `protobuf:"varint,2,opt,name=userId,proto3" json:"userId,omitempty"`
+	Value0               int32    `protobuf:"varint,3,opt,name=Value0,proto3" json:"Value0,omitempty"`
+	Value1               int32    `protobuf:"varint,4,opt,name=Value1,proto3" json:"Value1,omitempty"`
+	Value2               int32    `protobuf:"varint,5,opt,name=Value2,proto3" json:"Value2,omitempty"`
+	Payload              []byte   `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *PbMsg) Reset()         { *m = PbMsg{} }
-func (m *PbMsg) String() string { return proto.CompactTextString(m) }
-func (*PbMsg) ProtoMessage()    {}
-func (*PbMsg) Descriptor() ([]byte, []int) {
+func (m *Msg) Reset()         { *m = Msg{} }
+func (m *Msg) String() string { return proto.CompactTextString(m) }
+func (*Msg) ProtoMessage()    {}
+func (*Msg) Descriptor() ([]byte, []int) {
 	return fileDescriptor_27d5866e3399cd9e, []int{0}
 }
 
-func (m *PbMsg) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_PbMsg.Unmarshal(m, b)
+func (m *Msg) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Msg.Unmarshal(m, b)
 }
-func (m *PbMsg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_PbMsg.Marshal(b, m, deterministic)
+func (m *Msg) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Msg.Marshal(b, m, deterministic)
 }
-func (m *PbMsg) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PbMsg.Merge(m, src)
+func (m *Msg) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Msg.Merge(m, src)
 }
-func (m *PbMsg) XXX_Size() int {
-	return xxx_messageInfo_PbMsg.Size(m)
+func (m *Msg) XXX_Size() int {
+	return xxx_messageInfo_Msg.Size(m)
 }
-func (m *PbMsg) XXX_DiscardUnknown() {
-	xxx_messageInfo_PbMsg.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PbMsg proto.InternalMessageInfo
-
-func (m *PbMsg) GetLength() int32 {
-	if m != nil {
-		return m.Length
-	}
-	return 0
+func (m *Msg) XXX_DiscardUnknown() {
+	xxx_messageInfo_Msg.DiscardUnknown(m)
 }
 
-func (m *PbMsg) GetCode() int32 {
+var xxx_messageInfo_Msg proto.InternalMessageInfo
+
+func (m *Msg) GetCode() int32 {
 	if m != nil {
 		return m.Code
 	}
 	return 0
 }
 
-func (m *PbMsg) GetUserId() int32 {
+func (m *Msg) GetUserId() int32 {
 	if m != nil {
 		return m.UserId
 	}
 	return 0
 }
 
-func (m *PbMsg) GetValue0() int32 {
+func (m *Msg) GetValue0() int32 {
 	if m != nil {
 		return m.Value0
 	}
 	return 0
 }
 
-func (m *PbMsg) GetValue1() int32 {
+func (m *Msg) GetValue1() int32 {
 	if m != nil {
 		return m.Value1
 	}
 	return 0
 }
 
-func (m *PbMsg) GetValue2() int32 {
+func (m *Msg) GetValue2() int32 {
 	if m != nil {
 		return m.Value2
 	}
 	return 0
 }
 
-func (m *PbMsg) GetPayload() []byte {
+func (m *Msg) GetPayload() []byte {
 	if m != nil {
 		return m.Payload
 	}
@@ -108,21 +100,20 @@ func (m *PbMsg) GetPayload() []byte {
 }
 
 func init() {
-	proto.RegisterType((*PbMsg)(nil), "netya.PbMsg")
+	proto.RegisterType((*Msg)(nil), "netya.Msg")
 }
 
 func init() { proto.RegisterFile("pbmsg.proto", fileDescriptor_27d5866e3399cd9e) }
 
 var fileDescriptor_27d5866e3399cd9e = []byte{
-	// 155 bytes of a gzipped FileDescriptorProto
+	// 139 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2e, 0x48, 0xca, 0x2d,
-	0x4e, 0xd7, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0xcd, 0x4b, 0x2d, 0xa9, 0x4c, 0x54, 0x5a,
-	0xcb, 0xc8, 0xc5, 0x1a, 0x90, 0xe4, 0x5b, 0x9c, 0x2e, 0x24, 0xc6, 0xc5, 0x96, 0x93, 0x9a, 0x97,
-	0x5e, 0x92, 0x21, 0xc1, 0xa8, 0xc0, 0xa8, 0xc1, 0x1a, 0x04, 0xe5, 0x09, 0x09, 0x71, 0xb1, 0x24,
-	0xe7, 0xa7, 0xa4, 0x4a, 0x30, 0x81, 0x45, 0xc1, 0x6c, 0x90, 0xda, 0xd2, 0xe2, 0xd4, 0x22, 0xcf,
-	0x14, 0x09, 0x66, 0x88, 0x5a, 0x08, 0x0f, 0x24, 0x1e, 0x96, 0x98, 0x53, 0x9a, 0x6a, 0x20, 0xc1,
-	0x02, 0x11, 0x87, 0xf0, 0xe0, 0xe2, 0x86, 0x12, 0xac, 0x48, 0xe2, 0x86, 0x70, 0x71, 0x23, 0x09,
-	0x36, 0x24, 0x71, 0x23, 0x21, 0x09, 0x2e, 0xf6, 0x82, 0xc4, 0xca, 0x9c, 0xfc, 0xc4, 0x14, 0x09,
-	0x76, 0x05, 0x46, 0x0d, 0x9e, 0x20, 0x18, 0x37, 0x89, 0x0d, 0xec, 0x7a, 0x63, 0x40, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0x94, 0xa5, 0x15, 0x72, 0xcc, 0x00, 0x00, 0x00,
+	0x4e, 0xd7, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0xcd, 0x4b, 0x2d, 0xa9, 0x4c, 0x54, 0x9a,
+	0xcc, 0xc8, 0xc5, 0xec, 0x5b, 0x9c, 0x2e, 0x24, 0xc4, 0xc5, 0x92, 0x9c, 0x9f, 0x92, 0x2a, 0xc1,
+	0xa8, 0xc0, 0xa8, 0xc1, 0x1a, 0x04, 0x66, 0x0b, 0x89, 0x71, 0xb1, 0x95, 0x16, 0xa7, 0x16, 0x79,
+	0xa6, 0x48, 0x30, 0x81, 0x45, 0xa1, 0x3c, 0x90, 0x78, 0x58, 0x62, 0x4e, 0x69, 0xaa, 0x81, 0x04,
+	0x33, 0x44, 0x1c, 0xc2, 0x83, 0x8b, 0x1b, 0x4a, 0xb0, 0x20, 0x89, 0x1b, 0xc2, 0xc5, 0x8d, 0x24,
+	0x58, 0x91, 0xc4, 0x8d, 0x84, 0x24, 0xb8, 0xd8, 0x0b, 0x12, 0x2b, 0x73, 0xf2, 0x13, 0x53, 0x24,
+	0xd8, 0x14, 0x18, 0x35, 0x78, 0x82, 0x60, 0xdc, 0x24, 0x36, 0xb0, 0x1b, 0x8d, 0x01, 0x01, 0x00,
+	0x00, 0xff, 0xff, 0x7f, 0x10, 0x50, 0x18, 0xb2, 0x00, 0x00, 0x00,
 }
