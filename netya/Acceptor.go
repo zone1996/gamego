@@ -91,10 +91,14 @@ func runSession(s *IoSession, ac *Acceptor) {
 	for {
 		n, err := s.conn.Read(data)
 		if err != nil {
-			log.Error("?", err)
+			log.Error("Err:?", err)
 			return
 		}
-		s.InBoundBuffer.Write(data[:n])
+		_, err = s.InBoundBuffer.Write(data[:n])
+		if err != nil {
+			log.Error("Err:?", err)
+			return
+		}
 		if pbmsg, err := codec.Decode(s.InBoundBuffer); err == nil {
 			for _, msg := range pbmsg {
 				if msg != nil {

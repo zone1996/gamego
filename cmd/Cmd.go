@@ -46,9 +46,9 @@ func (this *PlayerLoginCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
 		log.Info("mdata is nil")
 	}
 
-	_, err := session.Write(mdata)
+	n, err := session.Write(mdata)
 	if err != nil {
 		log.Info("WriteBack err:?", err)
 	}
-	log.Info("===========Write Back=======?", session.Id)
+	log.Info("===========Write Back=======?, n=?", session.Id, n)
 }

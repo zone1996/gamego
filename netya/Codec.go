@@ -3,7 +3,6 @@ package netya
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	_ "github.com/zone1996/logo"
 )
@@ -31,13 +30,11 @@ func (c *DefaultCodec) Decode(in *ByteBuf) (msgs []*PbMsg, err error) {
 }
 
 func doDecode(in *ByteBuf) (*PbMsg, error) {
-	fmt.Println("in bytes:", in.Bytes())
 	magicBytes := in.ReadSilceN(2)
 	if magicBytes == nil {
 		return nil, nil
 	}
 	if MAGIC_NUM != binary.BigEndian.Uint16(magicBytes) {
-		fmt.Println("MagicByte:", magicBytes)
 		return nil, ErrMagicNotRight // Magic Num not correct
 	}
 	lenBytes := in.ReadSilceN(2)

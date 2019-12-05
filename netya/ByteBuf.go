@@ -100,7 +100,6 @@ func (bb *ByteBuf) BytesN(n int) []byte {
 }
 
 func (bb *ByteBuf) Reset() {
-	bb.buf = bb.buf[:0]
 	bb.r = 0
 	bb.w = 0
 }
