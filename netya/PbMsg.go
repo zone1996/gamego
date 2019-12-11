@@ -8,7 +8,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-const MAX_PACKET_SIZE = ^uint16(0) >> 1 // 65535
+const MAX_PACKET_SIZE = ^uint16(0) >> 1 // 0x7FFF
 const MAGIC_NUM = uint16(0x1234)
 
 type PbMsg struct {
