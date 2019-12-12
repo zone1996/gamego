@@ -2,7 +2,6 @@ package timer
 
 import (
 	"fmt"
-	"time"
 )
 
 type TimerTask struct {
@@ -10,7 +9,7 @@ type TimerTask struct {
 	name      string
 	cancelled bool
 	turn      int64
-	period    int64 // 0:run once
+	period    int64 // Nanosecond, 0:run once
 }
 
 func newTimerTask(name string, f func(), period int64) *TimerTask {
@@ -27,7 +26,9 @@ func (t *TimerTask) run() {
 			fmt.Println("定时器任务:", t.name, ", err:", err)
 		}
 	}()
-	t.f()
+	if !t.cancelled {
+		t.f()
+	}
 }
 
 func (t *TimerTask) Cancel() {

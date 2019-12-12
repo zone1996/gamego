@@ -8,19 +8,19 @@ import (
 type Timer struct {
 	curSlot      int64 // 0~totalSlotNum-1
 	totalSlotNum int64
+	step         int64 // Nanosecond
 	slots        []*list.List
-
-	ticker   *time.Ticker
-	step     time.Duration
-	stopChan chan struct{}
+	ticker       *time.Ticker
+	stopChan     chan struct{}
 }
 
 func NewDefaultTimer() *Timer {
+	var slotNum int64 = 50
 	t := &Timer{
 		curSlot:      0,
-		totalSlotNum: 50,
-		slots:        make([]*list.List, 50),
-		step:         time.Second / 50, // 20ms
+		totalSlotNum: slotNum,
+		step:         int64(time.Second) / slotNum, // 20ms
+		slots:        make([]*list.List, slotNum),
 		stopChan:     make(chan struct{}, 1),
 	}
 	return t
@@ -29,22 +29,25 @@ func NewDefaultTimer() *Timer {
 // 在firstTime运行后，每隔period秒运行一次
 func (t *Timer) RunAtFixedRate(name string, f func(), firstTime time.Time, period int64) *TimerTask {
 	task := newTimerTask(name, f, period)
-	turn, slot := calcTurnAndSlot(firstTime)
+	turn, slot := t.calcTurnAndSlot(firstTime.UnixNano() - time.Now().UnixNano())
 	task.turn = turn
 	t.addTask(task, slot)
 	return task
 }
 
-// 在每天指定的时分秒运行一次
+// 指定时分秒，每天运行一次
 func (t *Timer) RunDailyAt(name string, f func(), hour, minute, second int) *TimerTask {
 	now := time.Now()
 	y, m, d := now.Date()
 	runTime := time.Date(y, m, d, hour, minute, second, 0, now.Location())
+	if now.After(runTime) {
+		runTime = runTime.AddDate(0, 0, 1)
+	}
 	period := int64(time.Hour) * 24
 	return t.RunAtFixedRate(name, f, runTime, period)
 }
 
-// 在指定的分秒，每小时运行一次
+// 指定分秒，每小时运行一次
 func (t *Timer) RunHourlyAt(name string, f func(), minute, second int) *TimerTask {
 	now := time.Now()
 	y, m, d := now.Date()
@@ -53,11 +56,11 @@ func (t *Timer) RunHourlyAt(name string, f func(), minute, second int) *TimerTas
 	return t.RunAtFixedRate(name, f, runTime, period)
 }
 
-// 每分钟运行一次
+// 每N分钟运行一次
 func (t *Timer) RunEveryNMinutes(name string, f func(), minutes int) *TimerTask {
 	now := time.Now()
 	y, m, d := now.Date()
-	runTime := time.Date(y, m, d, now.Hour(), now.Minute()+minutes, 0, 0, now.Location())
+	runTime := time.Date(y, m, d, now.Hour(), now.Minute()+minutes, 0, 0, now.Location()) // 首次运行延迟0~60s不等
 	period := int64(time.Minute) * int64(minutes)
 	return t.RunAtFixedRate(name, f, runTime, period)
 }
@@ -67,22 +70,18 @@ func (t *Timer) RunOnceAt(name string, f func(), runTime time.Time) *TimerTask {
 	return t.RunAtFixedRate(name, f, runTime, 0)
 }
 
-func (t *Timer) calcTurnAndSlot(runTime time.Time) (int64, int64) {
-	delayStep := (runTime.UnixNano() - time.Now().UnixNano()) / int64(step)
-	turn := delayStep / t.totalSlotNum
-	curSlot := t.curSlot
-
-	residue := delayStep % t.totalSlotNum
-	if residue+curSlot < t.totalSlotNum {
-		return turn, residue + curSlot
-	} else {
-		return turn + 1, residue + curSlot - t.totalSlotNum
+func (t *Timer) addTask(task *TimerTask, slot int64) {
+	if t.slots[slot] == nil {
+		t.slots[slot] = list.New()
 	}
+	t.slots[slot].PushBack(task)
 }
 
-// 重新安排
-func (t *Timer) reSchedule(task *TimerTask) {
-	delayStep := task.period / int64(step)
+func (t *Timer) calcTurnAndSlot(delayTime int64) (int64, int64) {
+	if delayTime <= 0 {
+		return 0, 0
+	}
+	delayStep := delayTime / t.step
 	turn := delayStep / t.totalSlotNum
 	curSlot := t.curSlot
 
@@ -91,15 +90,14 @@ func (t *Timer) reSchedule(task *TimerTask) {
 	if residue+curSlot > t.totalSlotNum {
 		turn += 1
 	}
-	task.turn = turn
-	addTask(task, slot)
+	return turn, slot
 }
 
-func (t *Timer) addTask(task *TimerTask, slot int) {
-	if t.slots[slot] == nil {
-		t.slots[slot] = list.New()
-	}
-	t.slots[slot].PushBack(task)
+// 重新安排
+func (t *Timer) reSchedule(task *TimerTask) {
+	turn, slot := t.calcTurnAndSlot(task.period)
+	task.turn = turn
+	t.addTask(task, slot)
 }
 
 func (t *Timer) Start() {
@@ -107,7 +105,7 @@ func (t *Timer) Start() {
 }
 
 func (t *Timer) start0() {
-	t.ticker = time.NewTicker(t.step)
+	t.ticker = time.NewTicker(time.Duration(t.step) * time.Nanosecond)
 	lastTickTime := time.Now()
 	for {
 		select {
@@ -128,22 +126,29 @@ func (t *Timer) start0() {
 }
 
 func (t *Timer) handleTick() {
+	defer func() {
+		t.curSlot++
+		t.curSlot = t.curSlot % t.totalSlotNum
+	}()
+
 	tasks := t.slots[t.curSlot]
 	if tasks == nil {
 		return
 	}
 
 	for e := tasks.Front(); e != nil; {
-		task := e.(*TimerTask)
-		if task.turn -= 1; task.turn > 0 {
+		task := e.Value.(*TimerTask)
+		task.turn--
+		if task.turn > 0 {
+			e = e.Next()
 			continue
 		}
-		go task.run()
+		go task.run() // TODO using goroutine pool to execute task
 		temp := e.Next()
 		tasks.Remove(e)
 		e = temp
 		if task.period != 0 && !task.cancelled {
-			t.reSchedule(task)
+			t.reSchedule(task) // 先remove后reschedule，避免刚加入就turn--
 		}
 	}
 }
