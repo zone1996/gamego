@@ -20,15 +20,18 @@ func newTimerTask(name string, f func(), period int64) *TimerTask {
 	}
 }
 
-func (t *TimerTask) run() {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println("定时器任务:", t.name, ", err:", err)
+func (t *TimerTask) getF() func() {
+	f := func() {
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Println("定时器任务:", t.name, ", err:", err)
+			}
+		}()
+		if !t.cancelled {
+			t.f()
 		}
-	}()
-	if !t.cancelled {
-		t.f()
 	}
+	return f
 }
 
 func (t *TimerTask) Cancel() {

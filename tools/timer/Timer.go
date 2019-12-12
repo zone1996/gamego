@@ -2,6 +2,7 @@ package timer
 
 import (
 	"container/list"
+	"gamego/tools/gopool"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type Timer struct {
 	slots        []*list.List
 	ticker       *time.Ticker
 	stopChan     chan struct{}
+	executor     gopool.Executor
 }
 
 func NewDefaultTimer() *Timer {
@@ -22,6 +24,7 @@ func NewDefaultTimer() *Timer {
 		step:         int64(time.Second) / slotNum, // 20ms
 		slots:        make([]*list.List, slotNum),
 		stopChan:     make(chan struct{}, 1),
+		executor:     gopool.NewSimpleExecutor(20, 1000),
 	}
 	return t
 }
@@ -143,7 +146,10 @@ func (t *Timer) handleTick() {
 			e = e.Next()
 			continue
 		}
-		go task.run() // TODO using goroutine pool to execute task
+		f := task.getF()
+		if err := t.executor.Execute(f); err != nil {
+			go f()
+		}
 		temp := e.Next()
 		tasks.Remove(e)
 		e = temp
