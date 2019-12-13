@@ -53,6 +53,7 @@ func NewSimpleExecutor(size int, queueSize int) Executor {
 	return e
 }
 
+// Execute block job f will block one goroutine
 func (p *SimpleExecutor) Execute(f func()) error {
 	safeF := func() {
 		defer func() {
@@ -78,7 +79,7 @@ func (p *SimpleExecutor) Shutdown() {
 		return
 	}
 	p.stopped = true
-	close(e.works)
+	close(p.works)
 }
 
 func (p *SimpleExecutor) Size() int {

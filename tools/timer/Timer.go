@@ -112,18 +112,16 @@ func (t *Timer) start0() {
 	lastTickTime := time.Now()
 	for {
 		select {
-		case <-t.ticker.C:
-			now := time.Now()
-			if now.Unix()-lastTickTime.Unix() > 5 { // 两次tick的Unix时间间隔超过5s
-				// TODO 机器时间发生变化
+		case now, ok := <-t.ticker.C:
+			if !ok { // closed
+				t.slots = nil
+				t.executor.Shutdown()
+				break
+			}
+			if now.Unix()-lastTickTime.Unix() > 5 { // TODO 机器时间发生变化:两次tick的Unix时间间隔超过5s
 			}
 			lastTickTime = now
 			t.handleTick()
-		case <-t.stopChan:
-			t.ticker.Stop()
-			t.slots = nil
-			close(t.stopChan)
-			return
 		}
 	}
 }
@@ -147,9 +145,7 @@ func (t *Timer) handleTick() {
 			continue
 		}
 		f := task.getF()
-		if err := t.executor.Execute(f); err != nil {
-			go f()
-		}
+		t.executor.Execute(f)
 		temp := e.Next()
 		tasks.Remove(e)
 		e = temp
@@ -160,5 +156,10 @@ func (t *Timer) handleTick() {
 }
 
 func (t *Timer) Stop() {
-	t.stopChan <- struct{}{}
+	t.ticker.Stop() // after this, handleTick may still running for a while
+}
+
+func (t *Timer) StopNow() {
+	t.ticker.Stop()
+	t.executor.Shutdown()
 }
