@@ -13,6 +13,7 @@ type ActionQueue struct {
 	executor *ActionQueueExecutor
 }
 
+// 使用此方法时，ActionQueue独占一个goroutine扫描延迟任务
 func NewActionQueue0(executor gopool.Executor) *ActionQueue {
 	aq := &ActionQueue{
 		actions:  list.New(),
@@ -21,6 +22,7 @@ func NewActionQueue0(executor gopool.Executor) *ActionQueue {
 	return aq
 }
 
+// 使用此方法时，共享ActionQueueExecutor的ActionQueue共用一个goroutine扫描延迟任务
 func NewActionQueue1(executor *ActionQueueExecutor) *ActionQueue {
 	aq := &ActionQueue{
 		actions:  list.New(),

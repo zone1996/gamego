@@ -39,7 +39,7 @@ func initLog() {
 
 func initNet() *netya.Acceptor {
 	netConfig := &netya.AcceptorConfig{
-		Port: ":6666",
+		Addr: ":6666",
 	}
 	ac := netya.NewAcceptor(netConfig, &DefaultHandler{}, &netya.DefaultCodec{})
 	go ac.Accept()

@@ -8,7 +8,9 @@ import (
 )
 
 type AcceptorConfig struct {
-	Port string // ":6666"
+	Addr            string // ":6666"
+	ReadBufferSize  int
+	WriteBufferSize int
 }
 
 type Acceptor struct {
@@ -35,7 +37,7 @@ func NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
 }
 
 func (ac *Acceptor) init() {
-	listener, err := net.Listen("tcp", ac.config.Port)
+	listener, err := net.Listen("tcp", ac.config.Addr)
 	if err != nil {
 		log.Fatal("?", err)
 	}

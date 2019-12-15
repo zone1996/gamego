@@ -10,11 +10,13 @@ import (
 var ErrTooLargeMsg = errors.New("Too Large PbMsg")
 var ErrMagicNotRight = errors.New("Magic num not Right")
 
+// using for tcp acceptor
 type Codec interface {
 	Encode(*PbMsg) ([]byte, bool)
 	Decode(*ByteBuf) ([]*PbMsg, error)
 }
 
+// implements Codec
 type DefaultCodec struct{}
 
 func (c *DefaultCodec) Decode(in *ByteBuf) (msgs []*PbMsg, err error) {
@@ -57,6 +59,26 @@ func doDecode(in *ByteBuf) (*PbMsg, error) {
 }
 
 func (c *DefaultCodec) Encode(msg *PbMsg) ([]byte, bool) {
+	data := msg.Bytes()
+	return data, data != nil
+}
+
+type UdpCodec interface {
+	Encode(*PbMsg) ([]byte, bool)
+	Decode([]byte) (*PbMsg, error)
+}
+
+type DefaultUdpCodec struct{}
+
+func (duc *DefaultUdpCodec) Decode(data []byte) (*PbMsg, error) {
+	if MAGIC_NUM != binary.BigEndian.Uint16(data[:2]) {
+		return nil, ErrMagicNotRight // Magic Num not correct
+	}
+	pbmsg := &PbMsg{}
+	err := pbmsg.ParseFrom(data[4:])
+	return pbmsg, err
+}
+func (duc *DefaultUdpCodec) Encode(msg *PbMsg) ([]byte, bool) {
 	data := msg.Bytes()
 	return data, data != nil
 }

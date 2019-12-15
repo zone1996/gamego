@@ -22,7 +22,7 @@ func registerCmd(code int32, c Cmd) {
 func InitCmd() {
 	Cmds = make(map[int32]Cmd)
 	// Register all your cmds here.
-	registerCmd(1, &PlayerLoginCmd{})
+	registerCmd(1, &ExampleCmd{})
 }
 
 func GetCmd(code int32) (cmd Cmd, ok bool) {
@@ -31,9 +31,9 @@ func GetCmd(code int32) (cmd Cmd, ok bool) {
 }
 
 // Just an example
-type PlayerLoginCmd struct{}
+type ExampleCmd struct{}
 
-func (this *PlayerLoginCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
+func (this *ExampleCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
 	userId := msg.GetUserId()
 	log.Info("Receive code=? from SessionId=?, UserId=?", msg.GetCode(), session.Id, userId)
 

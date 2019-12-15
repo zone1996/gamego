@@ -12,13 +12,16 @@ type ActionQueueExecutor struct {
 	executor     gopool.Executor
 	delayActions *list.List
 	ticker       *time.Ticker
+	step         int64
 }
 
 func NewActionExexutor(executor gopool.Executor) *ActionQueueExecutor {
+	step := 100 * int64(time.Millisecond) // 100ms 扫描一次
 	aqe := &ActionQueueExecutor{
 		executor:     executor,
 		delayActions: list.New(),
-		ticker:       time.NewTicker(10 * time.Millisecond),
+		ticker:       time.NewTicker(time.Duration(step)),
+		step:         step,
 	}
 	go func() {
 		for {
@@ -46,7 +49,7 @@ func (aqe *ActionQueueExecutor) check() {
 	defer aqe.Unlock()
 	for e := aqe.delayActions.Front(); e != nil; {
 		da := e.Value.(DelayAction)
-		da.SetDelay(da.GetDelay() - int64(time.Millisecond)*10)
+		da.SetDelay(da.GetDelay() - aqe.step)
 		if da.GetDelay() <= 0 {
 			aqe.delayActions.Remove(e)
 			da.GetQueue().EnqueueAction(da)

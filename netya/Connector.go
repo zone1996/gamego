@@ -64,7 +64,9 @@ func (c *Connector) Write(b []byte) (n int, err error) {
 }
 
 func (c *Connector) AsyncSend(msg *PbMsg) {
-	c.session.AsyncSend(msg)
+	if data, ok := c.codec.Encode(msg); ok {
+		c.AsyncWrite(data)
+	}
 }
 
 func (c *Connector) AsyncWrite(b []byte) {
