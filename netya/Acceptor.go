@@ -36,12 +36,13 @@ func NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
 	return ac
 }
 
-func (ac *Acceptor) init() {
+func (ac *Acceptor) init() error {
 	listener, err := net.Listen("tcp", ac.config.Addr)
 	if err != nil {
-		log.Fatal("?", err)
+		return err
 	}
 	ac.listener = listener
+	return nil
 }
 
 func (ac *Acceptor) temporarySleep() {
@@ -57,7 +58,10 @@ func (ac *Acceptor) temporarySleep() {
 }
 
 func (ac *Acceptor) Accept() {
-	ac.init()
+	if err := ac.init(); err != nil {
+		log.Error("Acceptor init err:?", err)
+		return
+	}
 	for {
 		conn, err := ac.listener.Accept()
 		if err != nil {
