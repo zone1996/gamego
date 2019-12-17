@@ -61,6 +61,7 @@ func (uac *UdpAcceptor) Accept() {
 			log.Info("UDPConn Read err:?", err)
 			continue
 		}
+		// TODO 存储UDPSession
 		packet := make([]byte, n)
 		copy(packet, data[:n])
 		f := func() {
