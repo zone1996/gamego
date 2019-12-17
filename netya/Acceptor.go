@@ -11,6 +11,7 @@ type AcceptorConfig struct {
 	Addr            string // ":6666"
 	ReadBufferSize  int
 	WriteBufferSize int
+	WSPath          string // eg: "/echo", Addr:"localhost:8080"
 }
 
 type Acceptor struct {

@@ -1,85 +1,117 @@
 package netya
 
 import (
+	"gamego/tools/gopool"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+type WSHandler interface {
+	OnConnected(session *WSSession)
+	OnMessage(session *WSSession, msgType int, data []byte)
+	OnDisconnected(session *WSSession)
+}
 
 type WSAcceptor struct {
 	config   *AcceptorConfig
 	server   *http.Server
 	upgrader websocket.Upgrader
-	conns    map[int64]*websocket.Conn
+	sessions map[int64]*WSSession
+	handler  WSHandler
+	executor gopool.Executor
 
 	mu     sync.Mutex
 	closed bool
 	idGen  int64
 }
 
-func NewWSAcceptor(config *AcceptorConfig) {
+func NewWSAcceptor(config *AcceptorConfig, h WSHandler, e gopool.Executor) *WSAcceptor {
 	wsa := &WSAcceptor{
 		config: config,
 		upgrader: websocket.Upgrader{
-			ReadBufferSize:  config.ReadBufferSize,
-			WriteBufferSize: config.WriteBufferSize,
+			HandshakeTimeout: 3 * time.Second,
+			ReadBufferSize:   config.ReadBufferSize,
+			WriteBufferSize:  config.WriteBufferSize,
 		},
-		conns: make(map[int64]*websocket.Conn),
+		sessions: make(map[int64]*WSSession),
+		handler:  h,
+		executor: e,
 	}
+	return wsa
 }
 
-type wshandler struct {
+type wsUpgradeHandler struct {
 	wsa *WSAcceptor
 }
 
-func (wsh *wshandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	wsa := wsh.wsa
+func (wuh *wsUpgradeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	wsa := wuh.wsa
 	conn, err := wsa.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+
 	// TODO conn config
 
-	id := wsa.addConn(conn)
-	defer wsa.removeConn(id)
+	id := wsa.genId()
+	session := newWSSession(id, conn)
+	wsa.addSession(session)
+	wsa.handler.OnConnected(session)
+	defer func() {
+		session.Close()
+		wsa.handler.OnDisconnected(session)
+		wsa.removeSession(id)
+	}()
 
 	for !wsa.closed {
-		msgType, b, err := conn.ReadMessage()
-		if err != nil || msgType != websocket.BinaryMessage {
+		msgType, msg, err := session.readMessage() // one goroutine read message
+		if err != nil {                            // maybe client closed
 			return
 		}
-		// TODO decode
-		// execute
-		conn.WriteMessage(msgType, b)
+		f := func() {
+			wsa.handler.OnMessage(session, msgType, msg)
+		}
+		wsa.executor.Execute(f)
 	}
 }
 
-func (wsa *WSAcceptor) addConn(conn *websocket.Conn) (id int64) {
+func (wsa *WSAcceptor) addSession(session *WSSession) {
 	wsa.mu.Lock()
 	defer wsa.mu.Unlock()
-	id = wsa.idGen
-	wsa.conns[wsa.idGen] = conn
-	wsa.idGen++
+	wsa.sessions[session.id] = session
 	return
 }
 
-func (wsa *WSAcceptor) removeConn(id int64) {
+func (wsa *WSAcceptor) genId() int64 {
 	wsa.mu.Lock()
 	defer wsa.mu.Unlock()
-	delete(wsa.conns, id)
+	wsa.idGen += 1
+	return wsa.idGen
+}
+
+func (wsa *WSAcceptor) removeSession(id int64) {
+	wsa.mu.Lock()
+	defer wsa.mu.Unlock()
+	delete(wsa.sessions, id)
 }
 
 func (wsa *WSAcceptor) Accept() {
 	server := &http.Server{
 		Addr:    wsa.config.Addr,
-		Handler: &wshandler{wsa: wsa},
+		Handler: &wsUpgradeHandler{wsa: wsa},
 	}
-	server.ListenAndServe()
+	// 证书、balabala
 	wsa.server = server
+	server.ListenAndServe()
 }
 
 func (wsa *WSAcceptor) Shutdown() {
+	if wsa.closed {
+		return
+	}
 	wsa.mu.Lock()
 	defer wsa.mu.Unlock()
 	if wsa.closed {
