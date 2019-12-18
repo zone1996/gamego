@@ -3,6 +3,8 @@ package netya
 import (
 	"gamego/tools/gopool"
 	"net"
+	"sync"
+	"syscall"
 
 	log "github.com/zone1996/logo"
 )
@@ -15,21 +17,17 @@ type UdpAcceptor struct {
 	config  *AcceptorConfig
 	udpAddr *net.UDPAddr
 	udpconn *net.UDPConn
+
+	mu       sync.RWMutex
+	sessions map[string]*UDPSession
 }
 
-func NewUdpAcceptor(config *AcceptorConfig, codec UdpCodec, handler UdpHandler, executor gopool.Executor) *UdpAcceptor {
-	if config.ReadBufferSize < 1024 {
-		config.ReadBufferSize = 1024
-	}
-	if config.WriteBufferSize < 4096 {
-		config.WriteBufferSize = 4096
-	}
-
+func NewUdpAcceptor(cf *AcceptorConfig, cc UdpCodec, h UdpHandler, e gopool.Executor) *UdpAcceptor {
 	uac := &UdpAcceptor{
-		codec:    codec,
-		handler:  handler,
-		executor: executor,
-		config:   config,
+		codec:    cc,
+		handler:  h,
+		executor: e,
+		config:   cf,
 	}
 	return uac
 }
@@ -59,25 +57,54 @@ func (uac *UdpAcceptor) Accept() {
 		n, remoteAddr, err := uac.udpconn.ReadFromUDP(data)
 		if err != nil {
 			log.Info("UDPConn Read err:?", err)
+			if err == syscall.EINVAL {
+				return
+			}
 			continue
 		}
-		// TODO 存储UDPSession
+
 		packet := make([]byte, n)
 		copy(packet, data[:n])
-		f := func() {
-			uac.handlePacket(remoteAddr, packet)
+		f := func() { // 同一客户端的包可能会并发执行，可以在业务逻辑中顺序执行(ActionQueue)
+			session := uac.tryGetSession(remoteAddr)
+			uac.handler.OnMessage(session, packet)
 		}
 		uac.executor.Execute(f)
 	}
 }
 
-func (uac *UdpAcceptor) handlePacket(remoteAddr *net.UDPAddr, data []byte) {
-	pb, err := uac.codec.Decode(data)
-	if err != nil {
-		log.Info("UdpDecode err:?", err)
-		return
+func (uac *UdpAcceptor) tryGetSession(remoteAddr *net.UDPAddr) *UDPSession {
+	remoteAddrStr := remoteAddr.String()
+	uac.mu.RLock()
+	if s, ok := uac.sessions[remoteAddrStr]; ok {
+		uac.mu.RUnlock()
+		return s
 	}
-	uac.handler.OnMessage(uac.udpconn, remoteAddr, pb)
+	uac.mu.Lock()
+	defer uac.mu.Unlock()
+	if s, ok := uac.sessions[remoteAddrStr]; ok {
+		return s
+	} else {
+		s := newUDPSession(remoteAddrStr, uac.udpconn, remoteAddr, uac)
+		uac.sessions[remoteAddrStr] = s
+		return s
+	}
+}
+
+func (uac *UdpAcceptor) RemoveSession(key interface{}) error {
+	k, ok := key.(string)
+	if !ok {
+		return nil
+	}
+	uac.mu.RLock()
+	if _, ok := uac.sessions[k]; !ok {
+		uac.mu.RUnlock()
+		return nil
+	}
+	uac.mu.Lock()
+	defer uac.mu.Unlock()
+	delete(uac.sessions, k)
+	return nil
 }
 
 func (uac *UdpAcceptor) Shutdown() {

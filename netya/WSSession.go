@@ -15,7 +15,7 @@ type WSSession struct {
 	conn      *websocket.Conn
 	Attribute map[string]interface{} // 可以存储玩家ID等信息
 	closed    bool
-	mu        sync.Mutex
+	mu        sync.RWMutex
 }
 
 func newWSSession(id int64, conn *websocket.Conn) *WSSession {
@@ -27,44 +27,29 @@ func newWSSession(id int64, conn *websocket.Conn) *WSSession {
 	return s
 }
 
-func (this *WSSession) Write(msg []byte) error {
+func (this *WSSession) Write(msg []byte) (n int, err error) {
 	if this.closed {
-		return ErrWSConnClosed
+		return 0, ErrWSConnClosed
 	}
 
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if !this.closed {
-		return this.conn.WriteMessage(websocket.BinaryMessage, msg)
-	}
-	return nil
-}
-
-func (this *WSSession) Writes(msgs ...[]byte) error {
-	if this.closed {
-		return ErrWSConnClosed
-	}
-
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.closed {
-		return ErrWSConnClosed
-	}
-
-	var err error
-	for _, msg := range msgs {
-		e := this.conn.WriteMessage(websocket.BinaryMessage, msg)
-		if e != nil {
-			err = e
+		err := this.conn.WriteMessage(websocket.BinaryMessage, msg)
+		if err == nil {
+			return len(msg), nil
 		}
+		return 0, err
 	}
-	return err
+	return 0, ErrWSConnClosed
 }
 
 // 代码中主动关闭:希望主动移除某个session时，如将玩家踢下线
 // 如果在服务端Close，ServeHTTP中的for循环也将退出
 func (this *WSSession) Close() {
+	this.mu.RLock()
 	if this.closed {
+		this.mu.RUnlock()
 		return
 	}
 

@@ -11,21 +11,21 @@ import (
 
 type defaultHandler struct{}
 
-func (h *defaultHandler) OnConnected(session *netya.IoSession) {
+func (h *defaultHandler) OnConnected(session *netya.TCPSession) {
 	fmt.Println("Session ? Connected.", session.Id)
 }
 
-func (h *defaultHandler) OnMessage(session *netya.IoSession, msg *netya.PbMsg) {
+func (h *defaultHandler) OnMessage(session *netya.TCPSession, msg *netya.PbMsg) {
 	fmt.Println("Receive Server data.code=", msg.GetCode(), "userId=", msg.GetUserId(), "payload=?", string(msg.GetPayload()))
 }
 
-func (h *defaultHandler) OnDisconnected(session *netya.IoSession) {
+func (h *defaultHandler) OnDisconnected(session *netya.TCPSession) {
 	session.Close()
 	fmt.Println("Session ? DisConnected.", session.Id)
 }
 
 func runExample() {
-	c := netya.NewConnector("localhost:6666", &defaultHandler{}, &netya.DefaultCodec{})
+	c := netya.NewTCPConnector("localhost:6666", &defaultHandler{}, &netya.DefaultCodec{})
 	if !c.Connect() {
 		return
 	}

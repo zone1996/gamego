@@ -6,15 +6,15 @@ import (
 	log "github.com/zone1996/logo"
 )
 
-type Connector struct {
+type TCPConnector struct {
 	Addr    string
 	codec   Codec
 	h       Handler
-	session *IoSession
+	session *TCPSession
 }
 
-func NewConnector(addr string, h Handler, codec Codec) *Connector {
-	c := &Connector{
+func NewTCPConnector(addr string, h Handler, codec Codec) *TCPConnector {
+	c := &TCPConnector{
 		Addr:  addr,
 		codec: codec,
 		h:     h,
@@ -22,7 +22,7 @@ func NewConnector(addr string, h Handler, codec Codec) *Connector {
 	return c
 }
 
-func (c *Connector) Connect() bool {
+func (c *TCPConnector) Connect() bool {
 	conn, err := net.Dial("tcp", c.Addr)
 	if err != nil {
 		return false
@@ -33,7 +33,7 @@ func (c *Connector) Connect() bool {
 	return true
 }
 
-func (c *Connector) run() {
+func (c *TCPConnector) run() {
 	s := c.session
 	data := make([]byte, 1024)
 	defer s.Close()
@@ -59,20 +59,20 @@ func (c *Connector) run() {
 	}
 }
 
-func (c *Connector) Write(b []byte) (n int, err error) {
+func (c *TCPConnector) Write(b []byte) (n int, err error) {
 	return c.session.Write(b)
 }
 
-func (c *Connector) AsyncSend(msg *PbMsg) {
+func (c *TCPConnector) AsyncSend(msg *PbMsg) {
 	if data, ok := c.codec.Encode(msg); ok {
 		c.AsyncWrite(data)
 	}
 }
 
-func (c *Connector) AsyncWrite(b []byte) {
+func (c *TCPConnector) AsyncWrite(b []byte) {
 	c.session.AsyncWrite(b)
 }
 
-func (c *Connector) Shutdown() {
+func (c *TCPConnector) Shutdown() {
 	c.session.Close()
 }

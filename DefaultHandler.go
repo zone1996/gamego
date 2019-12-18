@@ -8,14 +8,14 @@ import (
 )
 
 type DefaultHandler struct {
-	acceptor *netya.Acceptor
+	acceptor *netya.TCPAcceptor
 }
 
-func (h *DefaultHandler) OnConnected(session *netya.IoSession) {
+func (h *DefaultHandler) OnConnected(session *netya.TCPSession) {
 	log.Info("Session ? Connected.", session.Id)
 }
 
-func (h *DefaultHandler) OnMessage(session *netya.IoSession, msg *netya.PbMsg) {
+func (h *DefaultHandler) OnMessage(session *netya.TCPSession, msg *netya.PbMsg) {
 	code := msg.GetCode()
 
 	if c, ok := cmds.GetCmd(code); ok {
@@ -25,12 +25,12 @@ func (h *DefaultHandler) OnMessage(session *netya.IoSession, msg *netya.PbMsg) {
 	}
 }
 
-func (h *DefaultHandler) OnDisconnected(session *netya.IoSession) {
+func (h *DefaultHandler) OnDisconnected(session *netya.TCPSession) {
 	session.Close()
 	log.Info("Session ? DisConnected.", session.Id)
 }
 
-func wrapTask(cmd cmds.Cmd, session *netya.IoSession, msg *netya.PbMsg) func() {
+func wrapTask(cmd cmds.Cmd, session *netya.TCPSession, msg *netya.PbMsg) func() {
 	f := func() {
 		cmd.Exec(session, msg)
 	}

@@ -2,30 +2,31 @@ package netya
 
 import (
 	"net"
+	"sync"
 
 	log "github.com/zone1996/logo"
 )
 
 type UdpConnector struct {
-	codec      UdpCodec
-	handler    UdpHandler
-	ServerAddr string
-	RemoteAddr *net.UDPAddr
-	conn       *net.UDPConn
-	closed     bool
+	codec   UdpCodec
+	handler UdpHandler
+	config  *AcceptorConfig
+	session *UDPSession
+	closed  bool
+	mu      sync.RWMutex
 }
 
-func NewUdpConnector(serverAddr string, h UdpHandler, codec UdpCodec) *UdpConnector {
+func NewUdpConnector(config *AcceptorConfig, h UdpHandler, codec UdpCodec) *UdpConnector {
 	uc := &UdpConnector{
-		ServerAddr: serverAddr,
-		handler:    h,
-		codec:      codec,
+		config:  config,
+		handler: h,
+		codec:   codec,
 	}
 	return uc
 }
 
 func (uc *UdpConnector) Connect() bool {
-	serverAddr, err := net.ResolveUDPAddr("udp", uc.ServerAddr)
+	serverAddr, err := net.ResolveUDPAddr("udp", uc.config.Addr)
 	if err != nil {
 		log.Error("UDP Connect err:?", err)
 		return false
@@ -37,43 +38,65 @@ func (uc *UdpConnector) Connect() bool {
 		return false
 	}
 
-	conn.SetReadBuffer(4096)
-	conn.SetWriteBuffer(4096)
-	uc.conn = conn
-	uc.RemoteAddr = serverAddr
+	conn.SetReadBuffer(uc.config.ReadBufferSize)
+	conn.SetWriteBuffer(uc.config.WriteBufferSize)
+	uc.session = newUDPSession("", conn, serverAddr, nil)
+	uc.handler.OnConnected(uc.session)
 	go uc.run()
 	return true
 }
 
 func (uc *UdpConnector) run() {
-	data := make([]byte, 4096)
-	for !uc.closed {
-		n, remoteAddr, err := uc.conn.ReadFromUDP(data)
+	session := uc.session
+	data := make([]byte, uc.config.ReadBufferSize)
+	for !uc.Closed() {
+		n, _, err := session.conn.ReadFromUDP(data)
 		if err != nil {
 			continue
 		}
-		pb, err := uc.codec.Decode(data[:n])
-		if err != nil {
-			continue
-		}
+		packet := make([]byte, n)
+		copy(packet, data[:n])
 		f := func() {
-			uc.handler.OnMessage(uc.conn, remoteAddr, pb)
+			uc.handler.OnMessage(session, packet)
 		}
 		f() // or using executor:尽量减少因程序原因造成丢包
 	}
 }
 
-func (uc *UdpConnector) WriteBytes(data []byte, remoteAddr *net.UDPAddr) {
-	uc.conn.WriteToUDP(data, remoteAddr)
+func (uc *UdpConnector) WriteBytes(data []byte) {
+	if uc.Closed() {
+		return
+	}
+	if len(data) > uc.config.WriteBufferSize {
+		// log
+		return
+	}
+	uc.session.Write(data)
 }
 
-func (uc *UdpConnector) WritePbMsg(pb *PbMsg, remoteAddr *net.UDPAddr) {
+func (uc *UdpConnector) WritePbMsg(pb *PbMsg) {
+	if uc.Closed() {
+		return
+	}
 	if data, ok := uc.codec.Encode(pb); ok {
-		uc.conn.WriteToUDP(data, remoteAddr)
+		uc.WriteBytes(data)
 	}
 }
 
 func (uc *UdpConnector) Shutdown() {
-	uc.conn.Close()
+	if uc.closed {
+		return
+	}
+
+	uc.mu.Lock()
+	defer uc.mu.Lock()
+	uc.session.Close()
 	uc.closed = true
+	uc.handler.OnDisconnected(uc.session)
+}
+
+func (uc *UdpConnector) Closed() bool {
+	uc.mu.RLock()
+	defer uc.mu.RUnlock()
+	return uc.closed
 }

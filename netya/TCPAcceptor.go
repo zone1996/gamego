@@ -14,7 +14,7 @@ type AcceptorConfig struct {
 	WSPath          string // eg: "/echo", Addr:"localhost:8080"
 }
 
-type Acceptor struct {
+type TCPAcceptor struct {
 	config   *AcceptorConfig
 	listener net.Listener
 	handler  Handler
@@ -22,22 +22,22 @@ type Acceptor struct {
 
 	sleepDuration      time.Duration
 	sessionIdGenerator int32
-	conns              map[int32]*IoSession
+	conns              map[int32]*TCPSession
 }
 
-func NewAcceptor(config *AcceptorConfig, h Handler, codec Codec) *Acceptor {
-	ac := &Acceptor{
+func NewTCPAcceptor(config *AcceptorConfig, h Handler, codec Codec) *TCPAcceptor {
+	ac := &TCPAcceptor{
 		config:             config,
 		handler:            h,
 		codec:              codec,
-		conns:              make(map[int32]*IoSession),
+		conns:              make(map[int32]*TCPSession),
 		sleepDuration:      time.Second,
 		sessionIdGenerator: 0,
 	}
 	return ac
 }
 
-func (ac *Acceptor) init() error {
+func (ac *TCPAcceptor) init() error {
 	listener, err := net.Listen("tcp", ac.config.Addr)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func (ac *Acceptor) init() error {
 	return nil
 }
 
-func (ac *Acceptor) temporarySleep() {
+func (ac *TCPAcceptor) temporarySleep() {
 	if ac.sleepDuration == 0 {
 		ac.sleepDuration = 5 * time.Millisecond
 	} else {
@@ -58,7 +58,7 @@ func (ac *Acceptor) temporarySleep() {
 	time.Sleep(ac.sleepDuration)
 }
 
-func (ac *Acceptor) Accept() {
+func (ac *TCPAcceptor) Accept() {
 	if err := ac.init(); err != nil {
 		log.Error("Acceptor init err:?", err)
 		return
@@ -73,7 +73,7 @@ func (ac *Acceptor) Accept() {
 			return
 		}
 		ac.sleepDuration = 0
-		session := NewIoSession(conn)
+		session := NewTCPSession(conn)
 		session.SetId(ac.sessionIdGenerator)
 		go runSession(session, ac)
 
@@ -82,7 +82,7 @@ func (ac *Acceptor) Accept() {
 	}
 }
 
-func runSession(s *IoSession, ac *Acceptor) {
+func runSession(s *TCPSession, ac *TCPAcceptor) {
 	codec := ac.codec
 	h := ac.handler
 	h.OnConnected(s)
@@ -121,7 +121,7 @@ func runSession(s *IoSession, ac *Acceptor) {
 	}
 }
 
-func (ac *Acceptor) Shutdown() {
+func (ac *TCPAcceptor) Shutdown() {
 	ac.listener.Close()
 	for _, s := range ac.conns {
 		s.Close()

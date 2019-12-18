@@ -7,7 +7,7 @@ import (
 )
 
 type Cmd interface { // one code, one Cmd
-	Exec(session *netya.IoSession, msg *netya.PbMsg)
+	Exec(session *netya.TCPSession, msg *netya.PbMsg)
 }
 
 var Cmds map[int32]Cmd
@@ -33,7 +33,7 @@ func GetCmd(code int32) (cmd Cmd, ok bool) {
 // Just an example
 type ExampleCmd struct{}
 
-func (this *ExampleCmd) Exec(session *netya.IoSession, msg *netya.PbMsg) {
+func (this *ExampleCmd) Exec(session *netya.TCPSession, msg *netya.PbMsg) {
 	userId := msg.GetUserId()
 	log.Info("Receive code=? from SessionId=?, UserId=?", msg.GetCode(), session.Id, userId)
 

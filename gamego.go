@@ -37,11 +37,11 @@ func initLog() {
 	log.Init(logconfig)
 }
 
-func initNet() *netya.Acceptor {
+func initNet() *netya.TCPAcceptor {
 	netConfig := &netya.AcceptorConfig{
 		Addr: ":6666",
 	}
-	ac := netya.NewAcceptor(netConfig, &DefaultHandler{}, &netya.DefaultCodec{})
+	ac := netya.NewTCPAcceptor(netConfig, &DefaultHandler{}, &netya.DefaultCodec{})
 	go ac.Accept()
 	return ac
 }
@@ -53,7 +53,7 @@ func initDB() {
 	initComponent(db.Init(dbconfig), "数据库")
 }
 
-func start() *netya.Acceptor {
+func start() *netya.TCPAcceptor {
 	conf.Init("./conf/config.conf")
 	initLog()
 	cmd.InitCmd()
@@ -63,7 +63,7 @@ func start() *netya.Acceptor {
 	return ac
 }
 
-func onStop(ac *netya.Acceptor) {
+func onStop(ac *netya.TCPAcceptor) {
 	ac.Shutdown()
 	log.Info("Server Close.")
 }

@@ -1,16 +1,14 @@
 package netya
 
-import (
-	"net"
-)
-
 type Handler interface {
-	OnConnected(session *IoSession)
-	OnMessage(session *IoSession, msg *PbMsg)
-	OnDisconnected(session *IoSession)
+	OnConnected(session *TCPSession)
+	OnMessage(session *TCPSession, msg *PbMsg)
+	OnDisconnected(session *TCPSession)
 }
 
+// 对于UDP，没有连接一说:因此 OnConnected、OnDisconnected都未使用
 type UdpHandler interface {
-	// handle msg, you can using udpconn to write msg back to remoteAddr
-	OnMessage(udpconn *net.UDPConn, remoteAddr *net.UDPAddr, msg *PbMsg)
+	OnConnected(session *UDPSession)
+	OnMessage(session *UDPSession, packet []byte)
+	OnDisconnected(session *UDPSession)
 }
