@@ -3,10 +3,10 @@ syntax = "proto3";
 package rpc;
 
 message RpcCall {
-	int64  seq 			  = 1; // 序列号-客户端使用
-	string serviceName    = 2; // 服务名， 结构.方法：HelloService.Hello
-	bytes  req 			  = 3; //
-	bytes  resp 		  = 4; // 
-	string err			  = 5; // 错误信息
+	int64  seq 			   = 1; // 序列号-客户端使用
+	string serviceName     = 2; // 服务名， 结构.方法：HelloService.Hello
+	bytes  req 			 = 3; //
+	bytes  resp 		  	= 4; // 
+	string err		   = 5; // 错误信息
 	bool   reply		  = 6; // 是否需要回复
 }

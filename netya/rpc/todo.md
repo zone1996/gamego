@@ -12,7 +12,7 @@ message HelloResponse {
 
 type HelloService struct{}
 
-func (hs *HelloService) Hello(req HelloRequest, resp *HelloResponse) {
+func (hs *HelloService) Hello(req HelloRequest, resp *HelloResponse) error{
 	resp.Msg = "Hello," + req.Name;
 }
 =======================================================================
