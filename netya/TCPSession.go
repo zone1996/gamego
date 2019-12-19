@@ -8,8 +8,10 @@ import (
 	log "github.com/zone1996/logo"
 )
 
+const TCP_SESSION_KEY_IN_BUFFER = "KEY_IN_BYTE_BUFFER"
+
 type TCPSession struct {
-	Id                  int32
+	Id                  int64
 	conn                net.Conn
 	InBoundBuffer       *ByteBuf // for cumulate bytes
 	OutBoundBuffer      *ByteBuf // for async write
@@ -25,8 +27,8 @@ type TCPSession struct {
 func NewTCPSession(conn net.Conn) *TCPSession {
 	session := &TCPSession{
 		conn:                conn,
-		InBoundBuffer:       NewByteBuf(1024, 2*int(MAX_PACKET_SIZE)),
-		OutBoundBuffer:      NewByteBuf(1024, 2*int(MAX_PACKET_SIZE)),
+		InBoundBuffer:       NewByteBuf(1024, 10240),
+		OutBoundBuffer:      NewByteBuf(1024, 10240),
 		Attribute:           make(map[string]interface{}),
 		AsyncWriteChan:      make(chan struct{}),
 		AsyncTaskChan:       make(chan func(), 64),
@@ -34,14 +36,15 @@ func NewTCPSession(conn net.Conn) *TCPSession {
 		closeAsyncWriteChan: make(chan struct{}),
 		AliveState:          1,
 	}
+	session.Attribute[TCP_SESSION_KEY_IN_BUFFER] = session.InBoundBuffer
 	return session
 }
 
-func (this *TCPSession) SetId(id int32) {
+func (this *TCPSession) setId(id int64) {
 	this.Id = id
 }
 
-func (this *TCPSession) GetId() int32 {
+func (this *TCPSession) GetId() int64 {
 	return this.Id
 }
 
@@ -64,17 +67,13 @@ func (this *TCPSession) Write(b []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (this *TCPSession) AsyncSend(msg *PbMsg) {
-	this.AsyncWrite(msg.Bytes())
-}
-
-func (this *TCPSession) AsyncWrite(b []byte) {
+func (this *TCPSession) WriteAsync(b []byte) {
 	if this.IsAlive() && b != nil {
 		this.mu.Lock()
 		defer this.mu.Unlock()
 		n, err := this.OutBoundBuffer.Write(b)
 		if err != nil {
-			log.Info("AsyncWrite err: ?", err)
+			log.Info("WriteAsync err: ?", err)
 		}
 		if n > 0 {
 			this.AsyncWriteChan <- struct{}{}
@@ -130,6 +129,10 @@ func (this *TCPSession) Close() {
 		this.SetAlive(false)
 		this.conn.Close()
 	}
+}
+
+func (this *TCPSession) Closed() bool {
+	return this.IsAlive()
 }
 
 func (this *TCPSession) AddTask(task func()) {

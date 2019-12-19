@@ -33,17 +33,17 @@ resp := &HelloResponse{}
 
 RpcClient.Call("HelloService.Hello", req, resp) error
 RpcClient.CallAsync("HelloService.Hello", req) (resp <-chan []byte, err error)
-RpcClient.CallTimedOut("HelloService.Hello", req, resp, timedOutNanos) error
+RpcClient.CallTimedOut("HelloService.Hello", req, resp, timedOutNanos, failRetryCount) error
 
 
 ==============
 rpc.proto
-package rpcpb
+package rpc
 message RpcCall {
-	int64  seq 			 = 1; // 序列号
-	string serviceName   = 2; 
-	bytes  req 			 = 3;
-	bytes  resp 		 = 4;
-	int32  type 		 = 5; // 1:同步调用 2:异步调用 3:带超时
-	int64  timedOutNanos = 6; // 超时时间:纳秒
+	int64  seq 			  = 1; // 序列号-客户端使用
+	string serviceName    = 2; // 服务名， 结构.方法：HelloService.Hello
+	bytes  req 			  = 3; //
+	bytes  resp 		  = 4; // 
+	string err			  = 5; // 错误信息
+	bool   reply		  = 6; // 是否需要回复
 }

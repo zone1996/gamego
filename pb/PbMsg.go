@@ -1,4 +1,4 @@
-package netya
+package pb
 
 import (
 	"encoding/binary"

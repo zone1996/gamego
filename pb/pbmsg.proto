@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package netya;
+package pb;
 
 message Msg{
 	int32 code   = 1; // 协议号

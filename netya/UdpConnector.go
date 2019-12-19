@@ -8,19 +8,17 @@ import (
 )
 
 type UdpConnector struct {
-	codec   UdpCodec
-	handler UdpHandler
+	handler IoHandler
 	config  *AcceptorConfig
-	session *UDPSession
+	session IoSession
 	closed  bool
 	mu      sync.RWMutex
 }
 
-func NewUdpConnector(config *AcceptorConfig, h UdpHandler, codec UdpCodec) *UdpConnector {
+func NewUdpConnector(config *AcceptorConfig, h IoHandler) *UdpConnector {
 	uc := &UdpConnector{
 		config:  config,
 		handler: h,
-		codec:   codec,
 	}
 	return uc
 }
@@ -47,7 +45,7 @@ func (uc *UdpConnector) Connect() bool {
 }
 
 func (uc *UdpConnector) run() {
-	session := uc.session
+	session := uc.session.(*UDPSession)
 	data := make([]byte, uc.config.ReadBufferSize)
 	for !uc.Closed() {
 		n, _, err := session.conn.ReadFromUDP(data)
@@ -72,15 +70,6 @@ func (uc *UdpConnector) WriteBytes(data []byte) {
 		return
 	}
 	uc.session.Write(data)
-}
-
-func (uc *UdpConnector) WritePbMsg(pb *PbMsg) {
-	if uc.Closed() {
-		return
-	}
-	if data, ok := uc.codec.Encode(pb); ok {
-		uc.WriteBytes(data)
-	}
 }
 
 func (uc *UdpConnector) Shutdown() {

@@ -2,6 +2,7 @@ package netya
 
 import (
 	"net"
+	"sync"
 	"time"
 
 	log "github.com/zone1996/logo"
@@ -17,24 +18,26 @@ type AcceptorConfig struct {
 type TCPAcceptor struct {
 	config   *AcceptorConfig
 	listener net.Listener
-	handler  Handler
-	codec    Codec
+	handler  IoHandler
 
 	sleepDuration      time.Duration
-	sessionIdGenerator int32
-	conns              map[int32]*TCPSession
+	sessionIdGenerator int64
+	conns              map[int64]*TCPSession
+	mu                 sync.RWMutex
 }
 
-func NewTCPAcceptor(config *AcceptorConfig, h Handler, codec Codec) *TCPAcceptor {
+func NewTCPAcceptor(config *AcceptorConfig, h IoHandler) Acceptor {
 	ac := &TCPAcceptor{
 		config:             config,
 		handler:            h,
-		codec:              codec,
-		conns:              make(map[int32]*TCPSession),
+		conns:              make(map[int64]*TCPSession),
 		sleepDuration:      time.Second,
 		sessionIdGenerator: 0,
 	}
 	return ac
+}
+func (ac *TCPAcceptor) Network() string {
+	return "tcp"
 }
 
 func (ac *TCPAcceptor) init() error {
@@ -74,7 +77,7 @@ func (ac *TCPAcceptor) Accept() {
 		}
 		ac.sleepDuration = 0
 		session := NewTCPSession(conn)
-		session.SetId(ac.sessionIdGenerator)
+		session.setId(ac.sessionIdGenerator)
 		go runSession(session, ac)
 
 		ac.sessionIdGenerator += 1
@@ -83,12 +86,11 @@ func (ac *TCPAcceptor) Accept() {
 }
 
 func runSession(s *TCPSession, ac *TCPAcceptor) {
-	codec := ac.codec
 	h := ac.handler
 	h.OnConnected(s)
 	defer func() {
 		h.OnDisconnected(s)
-		delete(ac.conns, s.Id) // maybe concurrenttly mod conns
+		ac.RemoveSession(s.Id)
 	}()
 
 	go s.doAsyncWrite()
@@ -101,24 +103,24 @@ func runSession(s *TCPSession, ac *TCPAcceptor) {
 			log.Error("Err:?", err)
 			return
 		}
-		_, err = s.InBoundBuffer.Write(data[:n])
-		if err != nil {
-			log.Error("Err:?", err)
-			return
-		}
-		if pbmsg, err := codec.Decode(s.InBoundBuffer); err == nil {
-			for _, msg := range pbmsg {
-				if msg != nil {
-					h.OnMessage(s, msg) // do not block here
-				}
-			}
-		} else if err == ErrTooLargeMsg || err == ErrMagicNotRight {
-			log.Error("Err:?", err)
-			return
-		} else {
-			log.Info("Err:?", err)
-		}
+		h.OnMessage(s, data[:n])
 	}
+}
+
+func (ac *TCPAcceptor) RemoveSession(key interface{}) error {
+	k, ok := key.(int64)
+	if !ok {
+		return nil
+	}
+	ac.mu.RLock()
+	if _, ok := ac.conns[k]; !ok {
+		ac.mu.RUnlock()
+		return nil
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	delete(ac.conns, k)
+	return nil
 }
 
 func (ac *TCPAcceptor) Shutdown() {

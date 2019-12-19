@@ -9,9 +9,8 @@ import (
 	log "github.com/zone1996/logo"
 )
 
-type UdpAcceptor struct {
-	codec    UdpCodec
-	handler  UdpHandler
+type UDPAcceptor struct {
+	handler  IoHandler
 	executor gopool.Executor
 
 	config  *AcceptorConfig
@@ -22,17 +21,19 @@ type UdpAcceptor struct {
 	sessions map[string]*UDPSession
 }
 
-func NewUdpAcceptor(cf *AcceptorConfig, cc UdpCodec, h UdpHandler, e gopool.Executor) *UdpAcceptor {
-	uac := &UdpAcceptor{
-		codec:    cc,
+func NewUdpAcceptor(cf *AcceptorConfig, h IoHandler, e gopool.Executor) Acceptor {
+	uac := &UDPAcceptor{
 		handler:  h,
 		executor: e,
 		config:   cf,
 	}
 	return uac
 }
+func (uac *UDPAcceptor) Network() string {
+	return "udp"
+}
 
-func (uac *UdpAcceptor) init() {
+func (uac *UDPAcceptor) init() {
 	udpAddr, err := net.ResolveUDPAddr("udp", uac.config.Addr)
 	if err != nil {
 		log.Fatal("?", err)
@@ -49,7 +50,7 @@ func (uac *UdpAcceptor) init() {
 	uac.udpconn = udpconn
 }
 
-func (uac *UdpAcceptor) Accept() {
+func (uac *UDPAcceptor) Accept() {
 	uac.init()
 
 	data := make([]byte, uac.config.ReadBufferSize)
@@ -73,7 +74,7 @@ func (uac *UdpAcceptor) Accept() {
 	}
 }
 
-func (uac *UdpAcceptor) tryGetSession(remoteAddr *net.UDPAddr) *UDPSession {
+func (uac *UDPAcceptor) tryGetSession(remoteAddr *net.UDPAddr) *UDPSession {
 	remoteAddrStr := remoteAddr.String()
 	uac.mu.RLock()
 	if s, ok := uac.sessions[remoteAddrStr]; ok {
@@ -91,7 +92,7 @@ func (uac *UdpAcceptor) tryGetSession(remoteAddr *net.UDPAddr) *UDPSession {
 	}
 }
 
-func (uac *UdpAcceptor) RemoveSession(key interface{}) error {
+func (uac *UDPAcceptor) RemoveSession(key interface{}) error {
 	k, ok := key.(string)
 	if !ok {
 		return nil
@@ -107,7 +108,7 @@ func (uac *UdpAcceptor) RemoveSession(key interface{}) error {
 	return nil
 }
 
-func (uac *UdpAcceptor) Shutdown() {
+func (uac *UDPAcceptor) Shutdown() {
 	uac.executor.Shutdown()
 	uac.udpconn.Close()
 }

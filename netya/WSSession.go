@@ -13,7 +13,7 @@ var ErrWSConnClosed = errors.New("WSConn closed")
 type WSSession struct {
 	id        int64
 	conn      *websocket.Conn
-	Attribute map[string]interface{} // 可以存储玩家ID等信息
+	attribute map[string]interface{} // 可以存储玩家ID等信息
 	closed    bool
 	mu        sync.RWMutex
 }
@@ -22,7 +22,7 @@ func newWSSession(id int64, conn *websocket.Conn) *WSSession {
 	s := &WSSession{
 		id:        id,
 		conn:      conn,
-		Attribute: make(map[string]interface{}),
+		attribute: make(map[string]interface{}),
 	}
 	return s
 }
@@ -42,6 +42,10 @@ func (this *WSSession) Write(msg []byte) (n int, err error) {
 		return 0, err
 	}
 	return 0, ErrWSConnClosed
+}
+
+func (us *WSSession) WriteAsync(b []byte) {
+	// TODO implement this
 }
 
 // 代码中主动关闭:希望主动移除某个session时，如将玩家踢下线
@@ -77,11 +81,11 @@ func (this *WSSession) readMessage() (messageType int, p []byte, err error) {
 func (this *WSSession) SetAttribute(k string, v interface{}) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
-	this.Attribute[k] = v
+	this.attribute[k] = v
 }
 
 func (this *WSSession) GetAttribute(k string) interface{} {
 	this.mu.Lock()
 	defer this.mu.Unlock()
-	return this.Attribute[k]
+	return this.attribute[k]
 }

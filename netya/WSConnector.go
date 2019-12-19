@@ -60,14 +60,8 @@ func (wsc *WSConnector) run(conn *websocket.Conn) {
 	}
 }
 
-func (wsc *WSConnector) Writes(msgs ...[]byte) {
-	if err := wsc.session.Writes(msgs...); err != nil {
-		fmt.Println("WS Writes err:", err)
-	}
-}
-
 func (wsc *WSConnector) Write(msg []byte) {
-	if err := wsc.session.Write(msg); err != nil {
+	if _, err := wsc.session.Write(msg); err != nil {
 		fmt.Println("WS Write err:", err)
 	}
 }

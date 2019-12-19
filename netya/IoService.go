@@ -3,7 +3,7 @@ package netya
 type Acceptor interface {
 	Network() string // tcp|udp|ws
 	Accept()         // block method
-	RemoveIoSession(key interface{}) error
+	RemoveSession(key interface{}) error
 	Shutdown()
 }
 

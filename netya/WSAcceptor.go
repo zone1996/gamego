@@ -28,7 +28,7 @@ type WSAcceptor struct {
 	idGen  int64
 }
 
-func NewWSAcceptor(config *AcceptorConfig, h WSHandler, e gopool.Executor) *WSAcceptor {
+func NewWSAcceptor(config *AcceptorConfig, h WSHandler, e gopool.Executor) Acceptor {
 	wsa := &WSAcceptor{
 		config: config,
 		upgrader: websocket.Upgrader{
@@ -63,7 +63,7 @@ func (wuh *wsUpgradeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		session.Close()
 		wsa.handler.OnDisconnected(session)
-		wsa.removeSession(id)
+		wsa.RemoveSession(id)
 	}()
 
 	for !wsa.closed {
@@ -92,10 +92,16 @@ func (wsa *WSAcceptor) genId() int64 {
 	return wsa.idGen
 }
 
-func (wsa *WSAcceptor) removeSession(id int64) {
+func (wsa *WSAcceptor) Network() string {
+	return "ws"
+}
+
+func (wsa *WSAcceptor) RemoveSession(key interface{}) error {
+	id := key.(int64)
 	wsa.mu.Lock()
 	defer wsa.mu.Unlock()
 	delete(wsa.sessions, id)
+	return nil
 }
 
 func (wsa *WSAcceptor) Accept() {

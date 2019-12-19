@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"gamego/netya"
+	"gamego/pb"
 
 	log "github.com/zone1996/logo"
 )
 
 type Cmd interface { // one code, one Cmd
-	Exec(session *netya.TCPSession, msg *netya.PbMsg)
+	Exec(session netya.IoSession, msg *pb.PbMsg)
 }
 
 var Cmds map[int32]Cmd
@@ -33,11 +34,11 @@ func GetCmd(code int32) (cmd Cmd, ok bool) {
 // Just an example
 type ExampleCmd struct{}
 
-func (this *ExampleCmd) Exec(session *netya.TCPSession, msg *netya.PbMsg) {
+func (this *ExampleCmd) Exec(session netya.IoSession, msg *pb.PbMsg) {
 	userId := msg.GetUserId()
-	log.Info("Receive code=? from SessionId=?, UserId=?", msg.GetCode(), session.Id, userId)
+	log.Info("Receive code=? from UserId=?", msg.GetCode(), userId)
 
-	msg1 := netya.NewPbMsg(msg.GetCode())
+	msg1 := pb.NewPbMsg(msg.GetCode())
 	msg1.SetUserId(userId)
 	msg1.SetPayload([]byte("send back payload data"))
 
@@ -50,5 +51,5 @@ func (this *ExampleCmd) Exec(session *netya.TCPSession, msg *netya.PbMsg) {
 	if err != nil {
 		log.Info("WriteBack err:?", err)
 	}
-	log.Info("===========Write Back=======?, n=?", session.Id, n)
+	log.Info("===========Write Back=======, n=?", n)
 }

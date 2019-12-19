@@ -8,16 +8,14 @@ import (
 
 type TCPConnector struct {
 	Addr    string
-	codec   Codec
-	h       Handler
+	h       IoHandler
 	session *TCPSession
 }
 
-func NewTCPConnector(addr string, h Handler, codec Codec) *TCPConnector {
+func NewTCPConnector(addr string, h IoHandler) *TCPConnector {
 	c := &TCPConnector{
-		Addr:  addr,
-		codec: codec,
-		h:     h,
+		Addr: addr,
+		h:    h,
 	}
 	return c
 }
@@ -27,7 +25,7 @@ func (c *TCPConnector) Connect() bool {
 	if err != nil {
 		return false
 	}
-	session := NewIoSession(conn)
+	session := NewTCPSession(conn)
 	c.session = session
 	go c.run()
 	return true
@@ -36,26 +34,17 @@ func (c *TCPConnector) Connect() bool {
 func (c *TCPConnector) run() {
 	s := c.session
 	data := make([]byte, 1024)
-	defer s.Close()
+	defer func() {
+		s.Close()
+		c.h.OnDisconnected(s)
+	}()
 	for {
 		n, err := s.conn.Read(data)
 		if err != nil {
 			log.Error("?", err)
 			return
 		}
-		s.InBoundBuffer.Write(data[:n])
-		if pbmsg, err := c.codec.Decode(s.InBoundBuffer); err == nil {
-			for _, msg := range pbmsg {
-				if msg != nil {
-					c.h.OnMessage(s, msg) // do not block here
-				}
-			}
-		} else if err == ErrTooLargeMsg || err == ErrMagicNotRight {
-			log.Error("err:?", err)
-			return
-		} else {
-			log.Error("err:?", err)
-		}
+		c.h.OnMessage(s, data[:n])
 	}
 }
 
@@ -63,14 +52,8 @@ func (c *TCPConnector) Write(b []byte) (n int, err error) {
 	return c.session.Write(b)
 }
 
-func (c *TCPConnector) AsyncSend(msg *PbMsg) {
-	if data, ok := c.codec.Encode(msg); ok {
-		c.AsyncWrite(data)
-	}
-}
-
 func (c *TCPConnector) AsyncWrite(b []byte) {
-	c.session.AsyncWrite(b)
+	c.session.WriteAsync(b)
 }
 
 func (c *TCPConnector) Shutdown() {

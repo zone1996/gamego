@@ -7,30 +7,31 @@ import (
 	_ "time"
 
 	"gamego/netya"
+	"gamego/pb"
 )
 
-type defaultHandler struct{}
-
-func (h *defaultHandler) OnConnected(session *netya.TCPSession) {
-	fmt.Println("Session ? Connected.", session.Id)
+type defaultHandler struct {
 }
 
-func (h *defaultHandler) OnMessage(session *netya.TCPSession, msg *netya.PbMsg) {
-	fmt.Println("Receive Server data.code=", msg.GetCode(), "userId=", msg.GetUserId(), "payload=?", string(msg.GetPayload()))
+func (h *defaultHandler) OnConnected(session netya.IoSession) {
+	fmt.Println("Session ? Connected.", session.(*netya.TCPSession).Id)
 }
 
-func (h *defaultHandler) OnDisconnected(session *netya.TCPSession) {
-	session.Close()
-	fmt.Println("Session ? DisConnected.", session.Id)
+func (h *defaultHandler) OnMessage(session netya.IoSession, data []byte) {
+	fmt.Println("Receive Server data.code=")
+}
+
+func (h *defaultHandler) OnDisconnected(session netya.IoSession) {
+	fmt.Println("Session ? DisConnected.", session.(*netya.TCPSession).Id)
 }
 
 func runExample() {
-	c := netya.NewTCPConnector("localhost:6666", &defaultHandler{}, &netya.DefaultCodec{})
+	c := netya.NewTCPConnector("localhost:6666", &defaultHandler{})
 	if !c.Connect() {
 		return
 	}
 
-	msg := netya.NewPbMsg(1)
+	msg := pb.NewPbMsg(1)
 	msg.SetUserId(666)
 	msg.SetValue(0, 100)
 	msg.SetPayload([]byte("Payload Data"))
