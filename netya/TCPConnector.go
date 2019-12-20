@@ -52,7 +52,7 @@ func (c *TCPConnector) Write(b []byte) (n int, err error) {
 	return c.session.Write(b)
 }
 
-func (c *TCPConnector) AsyncWrite(b []byte) {
+func (c *TCPConnector) WriteAsync(b []byte) {
 	c.session.WriteAsync(b)
 }
 

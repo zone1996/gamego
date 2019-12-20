@@ -1,18 +1,21 @@
 package rpc
 
 import (
-	"encoding/binary"
 	"gamego/netya"
 
 	log "github.com/zone1996/logo"
-
-	"github.com/golang/protobuf/proto"
 
 	"errors"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/golang/protobuf/proto"
 )
+
+var ErrServiceDuplicated = errors.New("Rpc service duplicated")
+var ErrServiceNotStruct = errors.New("Rpc service not struct")
+var ErrServiceNotFound = errors.New("Rpc service not found")
 
 type RpcServer struct {
 	acceptor netya.Acceptor
@@ -22,15 +25,11 @@ type RpcServer struct {
 func NewRpcServer(config *netya.AcceptorConfig) *RpcServer {
 	services := &sync.Map{}
 	s := &RpcServer{
-		acceptor: netya.NewTCPAcceptor(config, &rpcHandler{services}),
+		acceptor: netya.NewTCPAcceptor(config, &rpcServerHandler{services: services}),
 		services: services,
 	}
 	return s
 }
-
-var ErrServiceDuplicated = errors.New("Rpc service duplicated")
-var ErrServiceNotStruct = errors.New("Rpc service not struct")
-var ErrServiceNotFound = errors.New("Rpc service not found")
 
 func (server *RpcServer) Register(service interface{}) (err error) {
 	v := reflect.ValueOf(service)
@@ -60,15 +59,14 @@ func (server *RpcServer) Stop() {
 	server.acceptor.Shutdown()
 }
 
-type rpcHandler struct {
+///////////////////////////////////////////
+//rpcServerHandler implement netya.IoHandle
+type rpcServerHandler struct {
+	netya.IoHandlerAdapter
 	services *sync.Map
 }
 
-func (rpch *rpcHandler) OnConnected(session netya.IoSession) {}
-
-func (rpch *rpcHandler) OnDisconnected(session netya.IoSession) {}
-
-func (rpch *rpcHandler) OnMessage(session netya.IoSession, message []byte) {
+func (rpch *rpcServerHandler) OnMessage(session netya.IoSession, message []byte) {
 	inByteBuf := session.(*netya.TCPSession).InBoundBuffer
 	_, err := inByteBuf.Write(message)
 	if err != nil {
@@ -80,13 +78,13 @@ func (rpch *rpcHandler) OnMessage(session netya.IoSession, message []byte) {
 		for _, call := range calls {
 			rpch.handleService(session, call)
 		}
-	} else {
+	} else if err != nil {
 		session.Close()
 		return
 	}
 }
 
-func (rpch *rpcHandler) handleService(session netya.IoSession, call *RpcCall) {
+func (rpch *rpcServerHandler) handleService(session netya.IoSession, call *RpcCall) {
 	var err error
 	var in1Val reflect.Value
 	for {
@@ -135,48 +133,4 @@ func (rpch *rpcHandler) handleService(session netya.IoSession, call *RpcCall) {
 		back, _ := proto.Marshal(call)
 		session.Write(back) // 回传
 	}
-}
-
-func decode(in *netya.ByteBuf) (calls []*RpcCall, err error) {
-	for {
-		if call, e := doDecode(in); call != nil {
-			calls = append(calls, call)
-		} else {
-			err = e
-			break
-		}
-	}
-	return
-}
-
-const MAGIC_NUM = uint16(0x1234)
-const MAX_PACKET_SIZE = ^uint16(0) >> 1 // 0x7FFF=32767
-var ErrTooLargeMsg = errors.New("Too Large PbMsg")
-var ErrMagicNotRight = errors.New("Magic num not Right")
-
-func doDecode(in *netya.ByteBuf) (*RpcCall, error) {
-	magicBytes := in.ReadSilceN(2)
-	if magicBytes == nil {
-		return nil, nil
-	}
-	if MAGIC_NUM != binary.BigEndian.Uint16(magicBytes) {
-		return nil, ErrMagicNotRight // Magic Num not correct
-	}
-	lenBytes := in.ReadSilceN(2)
-	if lenBytes == nil {
-		in.UnreadBytes(2) // unread magic num bytes
-		return nil, nil
-	}
-	length := binary.BigEndian.Uint16(lenBytes)
-	if length > MAX_PACKET_SIZE {
-		return nil, ErrTooLargeMsg
-	}
-	if in.Len() < int(uint32(length)) { // decode next time
-		in.UnreadBytes(4)
-		return nil, nil
-	}
-	data := in.ReadSilceN(int(length))
-	call := &RpcCall{}
-	err := proto.Unmarshal(data, call)
-	return call, err
 }

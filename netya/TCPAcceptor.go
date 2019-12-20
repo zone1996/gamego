@@ -78,14 +78,14 @@ func (ac *TCPAcceptor) Accept() {
 		ac.sleepDuration = 0
 		session := NewTCPSession(conn)
 		session.setId(ac.sessionIdGenerator)
-		go runSession(session, ac)
+		go ac.runSession(session)
 
 		ac.sessionIdGenerator += 1
 		ac.conns[session.Id] = session
 	}
 }
 
-func runSession(s *TCPSession, ac *TCPAcceptor) {
+func (ac *TCPAcceptor) runSession(s *TCPSession) {
 	h := ac.handler
 	h.OnConnected(s)
 	defer func() {
