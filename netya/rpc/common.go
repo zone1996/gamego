@@ -13,6 +13,24 @@ const MAX_PACKET_SIZE = ^uint16(0) >> 1 // 0x7FFF=32767
 var ErrTooLargeMsg = errors.New("Too Large PbMsg")
 var ErrMagicNotRight = errors.New("Magic num not Right")
 
+func encode(call *RpcCall) ([]byte, error) {
+	pbSize := call.XXX_Size()
+	if pbSize > int(MAX_PACKET_SIZE) {
+		return nil, ErrTooLargeMsg
+	}
+
+	pbBytes, err := proto.Marshal(call)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, pbSize+4)
+	binary.BigEndian.PutUint16(b, MAGIC_NUM)
+	binary.BigEndian.PutUint16(b[2:], uint16(pbSize))
+	copy(b[4:], pbBytes)
+	return b, nil
+}
+
 func decode(in *netya.ByteBuf) (calls []*RpcCall, err error) {
 	for {
 		if call, e := doDecode(in); call != nil {

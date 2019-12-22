@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"gamego/netya"
+	"time"
 
 	log "github.com/zone1996/logo"
 
@@ -13,13 +14,25 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-var ErrServiceDuplicated = errors.New("Rpc service duplicated")
-var ErrServiceNotStruct = errors.New("Rpc service not struct")
-var ErrServiceNotFound = errors.New("Rpc service not found")
+var ErrServiceDuplicated = errors.New("RpcServer: service duplicated")
+var ErrServiceNotStruct = errors.New("RpcServer: service not struct")
+var ErrServiceNotFound = errors.New("RpcServer: service not found")
+var ErrServiceNoExported = errors.New("RpcServer: No Exported Service")
+
+type methodInfo struct {
+	method   reflect.Value // 方法
+	reqType  reflect.Type  // 请求参数类型
+	respType reflect.Type  // 返回参数类型
+}
+
+type rpcservice struct {
+	serviceName string                 // struct name
+	m           map[string]*methodInfo // methodName:methodInfo
+}
 
 type RpcServer struct {
 	acceptor netya.Acceptor
-	services *sync.Map // string:interface{}, struct实例
+	services *sync.Map // string:*rpcservice
 }
 
 func NewRpcServer(config *netya.AcceptorConfig) *RpcServer {
@@ -32,18 +45,44 @@ func NewRpcServer(config *netya.AcceptorConfig) *RpcServer {
 }
 
 func (server *RpcServer) Register(service interface{}) (err error) {
-	v := reflect.ValueOf(service)
 	defer func() {
 		if e := recover(); e != nil {
 			err = e.(error)
 		}
 	}()
-	v.NumField() // mustBe struct
-	serviceName := reflect.Indirect(v).Type().Name()
+
+	v := reflect.ValueOf(service)
+	t := reflect.TypeOf(service)
+	serviceName := reflect.Indirect(v).Type().Name() // struct name
 	if _, ok := server.services.Load(serviceName); ok {
 		return ErrServiceDuplicated // 重复注册
 	}
-	server.services.LoadOrStore(serviceName, v)
+
+	methodNum := t.NumMethod()
+	log.Info("serviceName ?, methodNum:?", serviceName, methodNum)
+	if methodNum < 1 {
+		log.Info("No exported method:?", serviceName)
+		return ErrServiceNoExported
+	}
+
+	s := &rpcservice{
+		serviceName: serviceName,
+		m:           make(map[string]*methodInfo),
+	}
+	for i := 0; i < methodNum; i++ {
+		m := v.Method(i) // 方法m:reflect.Value
+		mt := m.Type()
+		mi := &methodInfo{
+			method:   m,
+			reqType:  mt.In(0),
+			respType: mt.In(1),
+		}
+		s.m[t.Method(i).Name] = mi
+	}
+	server.services.Store(serviceName, s)
+	for mn, _ := range s.m {
+		log.Info("method name:?", mn)
+	}
 	return nil
 }
 
@@ -76,7 +115,10 @@ func (rpch *rpcServerHandler) OnMessage(session netya.IoSession, message []byte)
 
 	if calls, err := decode(inByteBuf); calls != nil && err == nil {
 		for _, call := range calls {
+			b := time.Now().UnixNano()
 			rpch.handleService(session, call)
+			e := time.Now().UnixNano()
+			log.Info("exec RpcService [?], cost ?ns", call.ServiceName, (e - b))
 		}
 	} else if err != nil {
 		session.Close()
@@ -85,8 +127,13 @@ func (rpch *rpcServerHandler) OnMessage(session netya.IoSession, message []byte)
 }
 
 func (rpch *rpcServerHandler) handleService(session netya.IoSession, call *RpcCall) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("handleService recover() :?", r)
+		}
+	}()
 	var err error
-	var in1Val reflect.Value
+	var respVal reflect.Value
 	for {
 		sm := strings.Split(call.ServiceName, ".")
 		if len(sm) != 2 {
@@ -98,39 +145,45 @@ func (rpch *rpcServerHandler) handleService(session netya.IoSession, call *RpcCa
 			err = ErrServiceNotFound
 			break
 		}
-		method := reflect.ValueOf(service).MethodByName(sm[1]) // 获取方法
-		if method.Elem().Interface() == nil {                  // 方法不存在
+		mi, ok := service.(*rpcservice).m[sm[1]]
+		if !ok { // 服务未注册
 			err = ErrServiceNotFound
 			break
 		}
-		mt := method.Type()                                                          // 方法type
-		in0Type := mt.In(0)                                                          // 参数0类型
-		in1Type := mt.In(1)                                                          // 参数1类型
-		in0Val := reflect.New(in0Type)                                               // 实例化参数0 Req
-		in1Val = reflect.New(in1Type)                                                // 实例化参数1 Resp
-		err = proto.Unmarshal([]byte(""), in0Val.Elem().Interface().(proto.Message)) // 解码Req
+		reqVal := reflect.New(mi.reqType)                                   // 实例化参数0 Req
+		respVal = reflect.New(mi.respType.Elem())                           // 实例化参数1 Resp
+		err = proto.Unmarshal(call.Req, reqVal.Interface().(proto.Message)) // 解码Req
 		if err != nil {
 			break
 		}
-		err = method.Call([]reflect.Value{in0Val, in1Val})[0].Elem().Interface().(error) // 调用
+
+		if vs := mi.method.Call([]reflect.Value{reqVal.Elem(), respVal}); vs != nil { // 调用
+			if e := vs[0].Interface(); e != nil {
+				err = e.(error)
+			}
+		}
 		break
 	}
+
 	if err != nil {
-		log.Info("RpcCall service=?, err:?", call.ServiceName, err.Error())
+		log.Info("RpcCall service=?, err:?", call.ServiceName, err)
 	}
 	if call.GetReply() {
 		call.Req = nil
 		if err != nil {
 			call.Err = err.Error()
 		} else {
-			if resp, err := proto.Marshal(in1Val.Elem().Interface().(proto.Message)); err == nil {
+			if resp, err := proto.Marshal(respVal.Interface().(proto.Message)); err == nil {
 				call.Resp = resp
 			} else {
 				call.Err = err.Error()
-				log.Info("RpcCall service=?, err:?", call.ServiceName, err.Error())
+				log.Info("RpcCall service=?, err:?", call.ServiceName, err)
 			}
 		}
-		back, _ := proto.Marshal(call)
-		session.Write(back) // 回传
+		if back, err := encode(call); err == nil {
+			session.Write(back) // 回传
+		} else {
+			log.Info("Err:?", err)
+		}
 	}
 }

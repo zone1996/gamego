@@ -56,7 +56,7 @@ func (client *RpcClient) Call(service string, req, resp proto.Message) error {
 	call.Req = reqBytes
 	call.Reply = true
 
-	callBytes, err := proto.Marshal(call) // 编码
+	callBytes, err := encode(call) // 编码
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (client *RpcClient) CallAsync(service string, req proto.Message) (<-chan []
 	call.Req = reqBytes
 	call.Reply = true
 
-	callBytes, err := proto.Marshal(call) // 编码
+	callBytes, err := encode(call) // 编码
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (client *RpcClient) CallTimedOut(service string,
 	call.Req = reqBytes
 	call.Reply = true
 
-	callBytes, err := proto.Marshal(call) // 编码
+	callBytes, err := encode(call) // 编码
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (client *RpcClient) CallNoReply(service string, req proto.Message) error {
 	call.Req = reqBytes
 	call.Reply = false
 
-	callBytes, err := proto.Marshal(call) // 编码
+	callBytes, err := encode(call) // 编码
 	if err != nil {
 		return err
 	}
@@ -232,4 +232,9 @@ func (rpch *rpcClientHandler) handleResult(call *RpcCall) {
 	} else {
 		log.Info("Service not found:?", call.ServiceName)
 	}
+}
+
+func (rpch *rpcClientHandler) OnDisconnected(session netya.IoSession) {
+	// TODO 为rpch.calls中的holder设置连接关闭错误
+	// TODO 关闭rpch.callWaitChanns中的chan
 }
