@@ -13,3 +13,4 @@ gamego
 *.out
 ./bin/*
 *.log*
+*.debug
