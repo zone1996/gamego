@@ -12,6 +12,7 @@ import (
 )
 
 var ErrRpcCallTimedOut = errors.New("RPC Call timedout")
+var ErrRpcSessionClosed = errors.New("Rpc Session Closed")
 
 type RpcClient struct {
 	seqGen         int64
@@ -221,7 +222,7 @@ func (rpch *rpcClientHandler) handleResult(call *RpcCall) {
 		} else {
 			respHolder.resp = call.GetResp() // 同步调用
 		}
-		if []byte(call.Err) != nil {
+		if call.Err != "" {
 			respHolder.err = errors.New(call.Err)
 		}
 		rpch.calls.Delete(call.Seq)
