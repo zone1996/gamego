@@ -2,20 +2,24 @@ package action
 
 import (
 	"container/list"
-	"gamego/tools/gopool"
 	"sync"
 	"time"
 )
 
+// something like ThreadPoolExecutor in Java. See tools/gopool/SimpleGoPool.go
+type Executor interface {
+	Execute(action func()) error
+}
+
 type ActionQueueExecutor struct {
 	sync.Mutex
-	executor     gopool.Executor
+	executor     Executor
 	delayActions *list.List
 	ticker       *time.Ticker
 	step         int64
 }
 
-func NewActionExexutor(executor gopool.Executor) *ActionQueueExecutor {
+func NewActionExexutor(executor Executor) *ActionQueueExecutor {
 	step := 100 * int64(time.Millisecond) // 100ms 扫描一次
 	aqe := &ActionQueueExecutor{
 		executor:     executor,
@@ -26,8 +30,11 @@ func NewActionExexutor(executor gopool.Executor) *ActionQueueExecutor {
 	go func() {
 		for {
 			select {
-			case <-aqe.ticker.C:
-				aqe.check()
+			case now, ok := <-aqe.ticker.C:
+				if !ok {
+					return
+				}
+				aqe.check(now.UnixNano())
 			}
 		}
 	}()
@@ -44,13 +51,12 @@ func (aqe *ActionQueueExecutor) enQueueDelayAction(delayAction DelayAction) {
 	aqe.delayActions.PushBack(delayAction)
 }
 
-func (aqe *ActionQueueExecutor) check() {
+func (aqe *ActionQueueExecutor) check(now int64) {
 	aqe.Lock()
 	defer aqe.Unlock()
 	for e := aqe.delayActions.Front(); e != nil; {
 		da := e.Value.(DelayAction)
-		da.SetDelay(da.GetDelay() - aqe.step)
-		if da.GetDelay() <= 0 {
+		if da.GetExecTime() <= now {
 			aqe.delayActions.Remove(e)
 			da.GetQueue().EnqueueAction(da)
 			e = aqe.delayActions.Front()

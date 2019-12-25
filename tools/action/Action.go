@@ -1,7 +1,7 @@
 package action
 
 import (
-	"fmt"
+	"time"
 )
 
 type Action interface {
@@ -11,41 +11,58 @@ type Action interface {
 
 type DelayAction interface {
 	Action
-	GetDelay() int64 // 毫秒, 延迟时间=Delay()*time.Millisecond
+	GetExecTime() int64
 	SetDelay(delay int64)
 }
 
-// 示例1
-type DefalutAction struct {
+// adapter for Action interface
+type defalutAction struct {
 	Queue *ActionQueue
 }
 
-func (da *DefalutAction) Execute() {
-	fmt.Println("ExampleAction-Execute")
+func (da *defalutAction) Execute() {
+	panic("Please override this method")
 }
 
-func (da *DefalutAction) GetQueue() *ActionQueue {
+func (da *defalutAction) GetQueue() *ActionQueue {
 	return da.Queue
 }
 
-// 示例2
-type DefaultDelayAction struct {
-	Delay int64
-	Queue *ActionQueue
+//  adapter for DelayAction interface
+type defaultDelayAction struct {
+	delay    int64
+	execTime int64
+	Queue    *ActionQueue
 }
 
-func (dda *DefaultDelayAction) Execute() {
-	fmt.Println("ExampleDelayAction-Execute")
+func (dda *defaultDelayAction) Execute() {
+	panic("Please override this method")
 }
 
-func (dda *DefaultDelayAction) GetQueue() *ActionQueue {
+func (dda *defaultDelayAction) GetQueue() *ActionQueue {
 	return dda.Queue
 }
 
-func (dda *DefaultDelayAction) GetDelay() int64 {
-	return dda.Delay
+func (dda *defaultDelayAction) SetDelay(delay int64) {
+	dda.delay = delay
+	dda.execTime = time.Now().UnixNano() + delay
 }
 
-func (dda *DefaultDelayAction) SetDelay(delay int64) {
-	dda.Delay = delay
+func (dda *defaultDelayAction) GetExecTime() int64 {
+	return dda.execTime
+}
+
+func NewAction(queue *ActionQueue) Action {
+	return &defalutAction{
+		Queue: queue,
+	}
+}
+
+func NewDelayAction(delay int64, queue *ActionQueue) DelayAction {
+	da := &defaultDelayAction{
+		delay:    delay,
+		Queue:    queue,
+		execTime: time.Now().UnixNano() + delay,
+	}
+	return da
 }

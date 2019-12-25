@@ -9,7 +9,7 @@ import (
 )
 
 type ExampleAction struct {
-	DefalutAction
+	Action
 	Name string
 	wg   *sync.WaitGroup
 }
@@ -28,9 +28,9 @@ func TestAction(t *testing.T) {
 	for i := 1; i < 11; i++ {
 		wg.Add(1)
 		action := &ExampleAction{
-			DefalutAction: DefalutAction{aq},
-			Name:          fmt.Sprintf("Action-%d", i),
-			wg:            &wg,
+			Action: NewAction(aq),
+			Name:   fmt.Sprintf("Action-%d", i),
+			wg:     &wg,
 		}
 		aq.EnqueueAction(action)
 	}
@@ -38,7 +38,7 @@ func TestAction(t *testing.T) {
 }
 
 type ExampleDelayAction struct {
-	DefaultDelayAction
+	DelayAction
 	Name string
 	wg   *sync.WaitGroup
 }
@@ -57,11 +57,9 @@ func TestDelayAction(t *testing.T) {
 	for i := 1; i < 11; i++ {
 		wg.Add(1)
 		action := &ExampleDelayAction{
-			DefaultDelayAction: DefaultDelayAction{
-				Delay: 5 * int64(time.Second),
-				Queue: aq},
-			Name: fmt.Sprintf("DelayAction-%d", i),
-			wg:   &wg,
+			DelayAction: NewDelayAction(5*int64(time.Second), aq),
+			Name:        fmt.Sprintf("DelayAction-%d", i),
+			wg:          &wg,
 		}
 		aq.EnqueueDelayAction(action)
 	}

@@ -2,7 +2,6 @@ package action
 
 import (
 	"container/list"
-	"gamego/tools/gopool"
 	"sync"
 )
 
@@ -14,7 +13,7 @@ type ActionQueue struct {
 }
 
 // 使用此方法时，ActionQueue独占一个goroutine扫描延迟任务
-func NewActionQueue0(executor gopool.Executor) *ActionQueue {
+func NewActionQueue0(executor Executor) *ActionQueue {
 	aq := &ActionQueue{
 		actions:  list.New(),
 		executor: NewActionExexutor(executor),
