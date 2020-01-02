@@ -2,21 +2,27 @@ package timer
 
 import (
 	"fmt"
+	"time"
 )
 
 type TimerTask struct {
 	f         func()
 	name      string
 	cancelled bool
-	turn      int64
-	period    int64 // Nanosecond, 0:run once
+	expires   time.Duration // 任务过期所需的jeffies数
+	period    time.Duration // 至少一个jiffies，即10ms
 }
 
-func newTimerTask(name string, f func(), period int64) *TimerTask {
+func newTimerTask(name string, f func(), expires, period time.Duration) *TimerTask {
+	if period != 0 && period < jiffies {
+		period = 1 * jiffies
+	}
+
 	return &TimerTask{
-		f:      f,
-		name:   name,
-		period: period,
+		f:       f,
+		name:    name,
+		expires: expires,
+		period:  period,
 	}
 }
 
