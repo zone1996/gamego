@@ -14,16 +14,12 @@ type TimerTask struct {
 }
 
 func newTimerTask(name string, f func(), expires, period time.Duration) *TimerTask {
-	if period != 0 && period < jiffies {
+	if period > 0 && period < jiffies {
 		period = 1 * jiffies
+	} else if period < 0 && period > -jiffies {
+		period = -1 * jiffies
 	}
-
-	return &TimerTask{
-		f:       f,
-		name:    name,
-		expires: expires,
-		period:  period,
-	}
+	return &TimerTask{f, name, false, expires, period}
 }
 
 func (t *TimerTask) getF() func() {

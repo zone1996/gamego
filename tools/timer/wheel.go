@@ -2,11 +2,13 @@ package timer
 
 import (
 	"container/list"
+	"sync"
 )
 
 type wheel struct {
 	size  int
 	slots []*list.List
+	mu    sync.Mutex
 }
 
 func newWheel(size int) *wheel {
@@ -20,7 +22,19 @@ func newWheel(size int) *wheel {
 	return w
 }
 
-func (w wheel) addTask(slot int, task *TimerTask) {
+func (w *wheel) clearSlot(slot int) *list.List {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	l := w.slots[slot]
+	if l.Len() != 0 {
+		w.slots[slot] = list.New()
+	}
+	return l
+}
+
+func (w *wheel) addTask(slot int, task *TimerTask) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if slot >= 0 && slot < w.size {
 		w.slots[slot].PushBack(task)
 	} else {

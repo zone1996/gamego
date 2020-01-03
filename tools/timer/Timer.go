@@ -1,7 +1,6 @@
 package timer
 
 import (
-	"container/list"
 	"time"
 )
 
@@ -75,32 +74,35 @@ func (t *Timer) addTimertask(task *TimerTask) {
 	}
 }
 
-// 获取tvn上的当前槽位，n为0时获取的是t.tv[1]
-func (t *Timer) getTvnSlot(n int) int {
-	s := (uint64(t.timer_jiffies) >> (tvr_bits + uint64(n)*tvn_bits)) & tvn_mask
-	return int(s)
-}
-
-// 将wi所在的wheel上slot处的list中的任务重新加入timer
-func (t *Timer) cascade(wi, slot int) int {
-	l := t.tv[wi].slots[slot]
-	t.tv[wi].slots[slot] = list.New()
-	for e := l.Front(); e != nil; e = e.Next() {
-		task := e.Value.(*TimerTask)
-		t.addTimertask(task)
-	}
-	return slot
-}
-
+// 计算任务过期时的jeffies值
 func calcExpires(expireTime time.Time) time.Duration {
 	return time.Duration(expireTime.UnixNano()) / jiffies
 }
 
-// 在firstTime运行后，每隔period秒运行一次
+// 在firstTime运行后，然后每隔period运行一次
+// 注：如果period>0,任务以固定频率重复执行，例如一个每分钟执行的task，
+// 如果系统时间调大1小时，轮到它执行时，将一次性重复执行60次
+// 如果period<0,任务以固定延迟重复执行：nextExecTime = curExecTime + |period|
 func (t *Timer) RunAtFixedRate(name string, f func(), firstTime time.Time, period time.Duration) *TimerTask {
 	task := newTimerTask(name, f, calcExpires(firstTime), period)
 	t.addTimertask(task)
 	return task
+}
+
+func (t *Timer) RunAtFixedDelay(name string, f func(), firstTime time.Time, period time.Duration) *TimerTask {
+	return t.RunAtFixedRate(name, f, firstTime, -period)
+}
+
+func (t *Timer) RunWeeklyAt(name string, f func(), wkday time.Weekday, hour, minute, second int) *TimerTask {
+	now := time.Now()
+	y, m, d := now.Date()
+	d += int(wkday-now.Weekday()+7) % 7
+	runTime := time.Date(y, m, d, hour, minute, second, 0, now.Location())
+	if now.After(runTime) {
+		runTime = runTime.AddDate(0, 0, 7)
+	}
+	period := time.Hour * 24 * 7
+	return t.RunAtFixedRate(name, f, runTime, period)
 }
 
 // 指定时分秒，每天运行一次
@@ -139,10 +141,10 @@ func (t *Timer) RunOnceAt(name string, f func(), runTime time.Time) *TimerTask {
 }
 
 func (t *Timer) Start() {
-	go t.start0()
+	go t.loop()
 }
 
-func (t *Timer) start0() {
+func (t *Timer) loop() {
 	t.ticker = time.NewTicker(jiffies)
 	for {
 		select {
@@ -155,24 +157,42 @@ func (t *Timer) start0() {
 	}
 }
 
+// 获取tvn上的当前槽位，n为0时获取的是t.tv[1]
+func (t *Timer) getTvnSlot(n int) int {
+	s := (uint64(t.timer_jiffies) >> (tvr_bits + uint64(n)*tvn_bits)) & tvn_mask
+	return int(s)
+}
+
+// 将wi所指的wheel上slot处的list中的任务重新加入timer
+func (t *Timer) cascade(wi, slot int) bool {
+	l := t.tv[wi].clearSlot(slot)
+	if l.Len() == 0 {
+		return slot == 0
+	}
+	for e := l.Front(); e != nil; e = e.Next() {
+		task := e.Value.(*TimerTask)
+		t.addTimertask(task)
+	}
+	return slot == 0
+}
+
 func (t *Timer) handleTick(now time.Time) {
 	nowJiffies := now.UnixNano() / int64(jiffies)
 	for nowJiffies >= t.timer_jiffies {
 		idx := t.timer_jiffies & int64(tvr_mask)
-		if idx == 0 && t.cascade(1, t.getTvnSlot(0)) == 0 &&
-			t.cascade(2, t.getTvnSlot(1)) == 0 &&
-			t.cascade(3, t.getTvnSlot(2)) == 0 {
+		if idx == 0 &&
+			t.cascade(1, t.getTvnSlot(0)) &&
+			t.cascade(2, t.getTvnSlot(1)) &&
+			t.cascade(3, t.getTvnSlot(2)) {
 			t.cascade(4, t.getTvnSlot(3))
 		}
 
 		t.timer_jiffies += 1
 
-		l := t.tv[0].slots[idx]
+		l := t.tv[0].clearSlot(int(idx))
 		if l.Len() == 0 {
 			continue
 		}
-
-		t.tv[0].slots[idx] = list.New()
 		for e := l.Front(); e != nil; e = e.Next() {
 			task := e.Value.(*TimerTask)
 			f := task.getF()
@@ -182,7 +202,11 @@ func (t *Timer) handleTick(now time.Time) {
 				f()
 			}
 			if task.period != 0 && !task.cancelled {
-				task.expires += (task.period / jiffies)
+				if task.period > 0 {
+					task.expires += (task.period / jiffies)
+				} else {
+					task.expires = time.Duration(nowJiffies) - (task.period / jiffies)
+				}
 				t.addTimertask(task)
 			}
 		}
